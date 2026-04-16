@@ -2,6 +2,8 @@ import React, { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import DoctorDashboard from './doctor/DoctorDashboard'
 import FrontOfficeDashboard from './frontoffice/FrontOfficeDashboard'
+import ErrorBoundary from './ErrorBoundary'
+import { API_BASE_URL } from './api'
 
 function LoginPage() {
   const [username, setUsername] = useState('')
@@ -16,7 +18,7 @@ function LoginPage() {
     setLoading(true)
 
     try {
-      const res = await fetch('http://localhost:8080/auth/login', {
+      const res = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -151,12 +153,14 @@ function LoginPage() {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/" element={<LoginPage />} />
-      <Route path="/dokter" element={<DoctorDashboard />} />
-      <Route path="/front-office" element={<FrontOfficeDashboard />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <ErrorBoundary>
+      <Routes>
+        <Route path="/" element={<LoginPage />} />
+        <Route path="/dokter" element={<DoctorDashboard />} />
+        <Route path="/front-office" element={<FrontOfficeDashboard />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </ErrorBoundary>
   )
 }
 

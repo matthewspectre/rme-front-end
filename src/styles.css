@@ -751,6 +751,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 100vh;
 }
 
 .fo-header {
@@ -806,6 +807,23 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 2.1fr) minmax(0, 1.2fr);
   gap: 14px;
+}
+
+.fo-main-register {
+  padding-bottom: 28px;
+}
+
+.fo-content-centered {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  justify-items: center;
+  align-content: center;
+  width: 100%;
 }
 
 .fo-card {
@@ -909,7 +927,52 @@ body {
 }
 
 .fo-form-card {
-  max-width: 880px;
+  width: min(100%, 920px);
+  justify-self: center;
+}
+
+.fo-list-card {
+  width: min(100%, 920px);
+  justify-self: center;
+}
+
+.fo-list-state {
+  margin: 0;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.fo-patient-table-wrap {
+  overflow-x: auto;
+}
+
+.fo-patient-table {
+  min-width: 1120px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.fo-patient-table-header,
+.fo-patient-table-row {
+  display: grid;
+  grid-template-columns: 160px 150px 140px 120px 110px 180px 130px 220px 100px 120px;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.fo-patient-table-header {
+  background: #eff6ff;
+  font-weight: 600;
+}
+
+.fo-patient-table-row:nth-child(odd) {
+  background: #ffffff;
+}
+
+.fo-patient-table-row:nth-child(even) {
+  background: #f9fafb;
 }
 
 .fo-form-message {
