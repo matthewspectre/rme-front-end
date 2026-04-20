@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { API_BASE_URL } from '../api'
 
 function DoctorDashboard() {
   const navigate = useNavigate()
@@ -22,18 +23,166 @@ function DoctorDashboard() {
     }
   }, [])
 
-  const today = 'Selasa, 15 April 2026'
-  const appointments = [
-    { time: '09:00', name: 'Budi Santoso', complaint: 'Nyeri Dada', status: 'Selesai' },
-    { time: '09:30', name: 'Siti Aminah', complaint: 'Kontrol Diabetes', status: 'Selesai' },
-    { time: '10:15', name: 'Andi Pratama', complaint: 'Batuk Pilek', status: 'Menunggu' },
-    { time: '11:00', name: 'Dewi Lestari', complaint: 'Rujukan', status: 'Menunggu' },
-  ]
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const today = now.toLocaleString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+
+  const [appointments, setAppointments] = useState([])
+  const [loadingAppointments, setLoadingAppointments] = useState(false)
+  const [appointmentsError, setAppointmentsError] = useState('')
+
+  useEffect(() => {
+    const loadAppointmentsForDoctor = async () => {
+      setLoadingAppointments(true)
+      setAppointmentsError('')
+      try {
+        // baca user dari localStorage
+        const stored = localStorage.getItem('user')
+        const parsedUser = stored ? JSON.parse(stored) : null
+        const userId = parsedUser?.id ?? parsedUser?.userId ?? parsedUser?.id_user
+
+        // ambil daftar dokter, cari yang terhubung dengan user ini
+        const dokterRes = await fetch(`${API_BASE_URL}/dokter/`)
+        if (!dokterRes.ok) throw new Error('Gagal mengambil daftar dokter')
+        const dokterData = await dokterRes.json()
+        const dokters = Array.isArray(dokterData) ? dokterData : []
+
+        const myDokter = dokters.find((d) => (d.id_user == userId) || (d.idUser == userId) || (d.user_id == userId))
+
+        if (!myDokter) {
+          // tidak ditemukan dokter untuk user ini -> kosongkan daftar
+          setAppointments([])
+          setLoadingAppointments(false)
+          return
+        }
+
+        const myDokterId = myDokter.id
+
+        // ambil antrian dan hanya ambil yang sesuai id_dokter
+        const res = await fetch(`${API_BASE_URL}/antrian/`)
+        if (!res.ok) throw new Error('Gagal mengambil antrian')
+        const data = await res.json()
+        const filtered = (Array.isArray(data) ? data : []).filter((it) => (
+          // dukung beberapa penamaan field yang mungkin berbeda
+          (it.idDokter != null && it.idDokter == myDokterId) ||
+          (it.id_dokter != null && it.id_dokter == myDokterId) ||
+          (it.id_dokter_pasien != null && it.id_dokter_pasien == myDokterId)
+        ))
+
+        // order by waktu (if present) then by id, then assign sequential nomorAntrian starting from 1
+        const toMillis = (x) => {
+          if (!x) return 0
+          const t = Date.parse(x)
+          return isNaN(t) ? 0 : t
+        }
+        const ordered = filtered.slice().sort((a, b) => {
+          const ta = toMillis(a.waktu) || a.id || 0
+          const tb = toMillis(b.waktu) || b.id || 0
+          return ta - tb
+        })
+
+        // fetch patient details for all patient IDs in the ordered list
+        const patientIds = Array.from(new Set(ordered.map(it => it.idPasien ?? it.id_pasien ?? it.pasien_id ?? it.id_pasien_pasien).filter(Boolean)))
+        const patientMap = {}
+        await Promise.all(patientIds.map(async (pid) => {
+          try {
+            const pres = await fetch(`${API_BASE_URL}/patients/?idPasien=${encodeURIComponent(pid)}`)
+            if (!pres.ok) return
+            const pdata = await pres.json()
+            const p = Array.isArray(pdata) ? pdata[0] : pdata
+            if (p && p.id != null) patientMap[String(p.id)] = p
+          } catch (e) {
+            console.error('Gagal mengambil data pasien', pid, e)
+          }
+        }))
+
+        const mapped = ordered.map((it, idx) => {
+          const pid = it.idPasien ?? it.id_pasien ?? it.pasien_id ?? it.id_pasien_pasien
+          const p = pid ? patientMap[String(pid)] : null
+          const noRekam = p?.noRekamMedis || p?.no_rekam_medis || p?.noRekam || '-'
+          const tMasuk = p?.tanggalMasuk || p?.tanggal_masuk || p?.tanggal || null
+          const tanggalStr = tMasuk ? new Date(tMasuk).toLocaleString('id-ID') : '-'
+          const jenisKelamin = p?.jenisKelamin || p?.jenis_kelamin || '-'
+
+          return {
+            id: it.id,
+            nomorAntrian: idx + 1,
+            name: it.namaPasien || '-',
+            patientNoRekam: noRekam,
+            patientTanggalMasuk: tanggalStr,
+            patientJK: jenisKelamin,
+            status: (it.idDokter && it.idDokter > 0) || (it.id_dokter && it.id_dokter > 0) ? 'Dipanggil' : 'Menunggu',
+          }
+        })
+
+        setAppointments(mapped)
+      } catch (err) {
+        console.error(err)
+        setAppointmentsError('Tidak dapat memuat janji temu')
+      } finally {
+        setLoadingAppointments(false)
+      }
+    }
+
+    loadAppointmentsForDoctor()
+  }, [])
 
   const handleLogout = () => {
     localStorage.removeItem('user')
     setMenuOpen(false)
     navigate('/')
+  }
+
+  const handlePeriksa = (item) => {
+    try {
+      console.log('PERIKSA clicked for', item)
+      // placeholder action - navigate or open modal can be implemented later
+      alert(`Periksa pasien: ${item.name}`)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const navigateToPemeriksaan = async () => {
+    try {
+      const stored = localStorage.getItem('user')
+      const parsed = stored ? JSON.parse(stored) : null
+      const userId = parsed?.id ?? parsed?.userId ?? parsed?.id_user
+
+      const dokterRes = await fetch(`${API_BASE_URL}/dokter/`)
+      if (!dokterRes.ok) throw new Error('Gagal mengambil daftar dokter')
+      const dokterData = await dokterRes.json()
+      const dokters = Array.isArray(dokterData) ? dokterData : []
+
+      const myDokter = dokters.find((d) => (d.id_user == userId) || (d.idUser == userId) || (d.user_id == userId))
+      const poliVal = myDokter?.poli ?? myDokter?.idPoli ?? myDokter?.poli_id ?? myDokter?.id_poli ?? null
+
+      if (Number(poliVal) === 1) {
+        navigate('/pemeriksaan')
+      } else if (Number(poliVal) === 2) {
+        navigate('/pemeriksaan/penyaki-dalam')
+      } else if (Number(poliVal) === 3) {
+        navigate('/pemeriksaan/anak')
+      } else {
+        // fallback
+        navigate('/pemeriksaan')
+      }
+    } catch (e) {
+      console.error('Gagal navigasi pemeriksaan', e)
+      navigate('/pemeriksaan')
+    }
   }
 
   const initials = user.full_name
@@ -60,33 +209,9 @@ function DoctorDashboard() {
             <span className="sidebar-icon">🏠</span>
             <span>Dashboard Utama</span>
           </button>
-          <button className="sidebar-item">
-            <span className="sidebar-icon">👥</span>
-            <span>Daftar Pasien</span>
-          </button>
-          <button className="sidebar-item">
-            <span className="sidebar-icon">📅</span>
-            <span>Jadwal Janji Temu</span>
-          </button>
-          <button className="sidebar-item">
-            <span className="sidebar-icon">📄</span>
-            <span>Rekam Medis</span>
-          </button>
-          <button className="sidebar-item">
-            <span className="sidebar-icon">🧪</span>
-            <span>Hasil Lab &amp; Pencitraan</span>
-          </button>
-          <button className="sidebar-item">
-            <span className="sidebar-icon">💊</span>
-            <span>Resep Obat</span>
-          </button>
-          <button className="sidebar-item">
-            <span className="sidebar-icon">💬</span>
-            <span>Pesan</span>
-          </button>
-          <button className="sidebar-item">
-            <span className="sidebar-icon">📊</span>
-            <span>Laporan</span>
+          <button className="sidebar-item" onClick={navigateToPemeriksaan}>
+            <span className="sidebar-icon">🩺</span>
+            <span>Pemeriksaan</span>
           </button>
         </nav>
       </aside>
@@ -137,16 +262,21 @@ function DoctorDashboard() {
             </div>
             <div className="appointments-table">
               <div className="appointments-header">
-                <span>Waktu</span>
+                <span>No. Antrian</span>
                 <span>Nama Pasien</span>
-                <span>Keluhan Utama</span>
+                <span>Informasi Pasien</span>
                 <span>Status</span>
+                <span aria-hidden="true" />
               </div>
               {appointments.map((item) => (
-                <div key={item.time} className="appointments-row">
-                  <span>{item.time}</span>
+                <div key={item.id} className="appointments-row">
+                  <span>{item.nomorAntrian}</span>
                   <span>{item.name}</span>
-                  <span>{item.complaint}</span>
+                  <span>
+                    <div><strong>No Rekam Medis:</strong> {item.patientNoRekam || '-'}</div>
+                    <div><strong>Tanggal Masuk:</strong> {item.patientTanggalMasuk || '-'}</div>
+                    <div><strong>JK:</strong> {item.patientJK || '-'}</div>
+                  </span>
                   <span>
                     <span
                       className={
@@ -157,6 +287,11 @@ function DoctorDashboard() {
                     >
                       {item.status}
                     </span>
+                  </span>
+                  <span>
+                    <button type="button" className="periksa-btn" onClick={() => handlePeriksa(item)}>
+                      PERIKSA
+                    </button>
                   </span>
                 </div>
               ))}

@@ -30,7 +30,6 @@ function FrontOfficeDashboard() {
   const [loadingPoli, setLoadingPoli] = useState(false)
   const [rujukError, setRujukError] = useState('')
   const [selectedPoli, setSelectedPoli] = useState('')
-
   const handleRujukClick = async (patientId) => {
     setShowRujuk(patientId)
     setLoadingPoli(true)
@@ -58,52 +57,6 @@ function FrontOfficeDashboard() {
   }
 
   const handleSelectPoli = (e) => setSelectedPoli(e.target.value)
-
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('user')
-      if (stored) {
-        const parsed = JSON.parse(stored)
-        setUser((prev) => ({ ...prev, ...parsed }))
-      }
-    } catch (e) {
-      console.error('Gagal membaca user dari localStorage', e)
-    }
-  }, [])
-
-  useEffect(() => {
-    const loadPatients = async () => {
-      if (!isRegisterMenu) return
-
-      setLoadingPatients(true)
-      setPatientListError('')
-
-      try {
-        const res = await fetch(`${API_BASE_URL}/patients/?id_data_klinik=${clinicId}`)
-        if (!res.ok) throw new Error('Gagal mengambil daftar pasien')
-        const data = await res.json()
-        setPatients(Array.isArray(data) ? data : [])
-      } catch (err) {
-        console.error(err)
-        setPatientListError('Tidak dapat memuat daftar pasien')
-      } finally {
-        setLoadingPatients(false)
-      }
-    }
-
-    loadPatients()
-  }, [isRegisterMenu])
-
-  const handleLogout = () => {
-    localStorage.removeItem('user')
-    navigate('/')
-  }
-
-  const handleMenuClick = (key) => {
-    setActiveMenu(key)
-    setMessage('')
-    setError('')
-  }
 
   const handleChange = (e) => {
     const { name, value } = e.target
@@ -169,12 +122,46 @@ function FrontOfficeDashboard() {
     }
   }
 
-  const today = 'Selasa, 15 April 2026'
+  const handleLogout = () => {
+    localStorage.removeItem('user')
+    navigate('/')
+  }
+
+  const handleMenuClick = (key) => {
+    setActiveMenu(key)
+    setMessage('')
+    setError('')
+  }
+
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const today = now.toLocaleString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 
   // Active queue fetched from backend
   const [activeQueue, setActiveQueue] = useState([])
   const [loadingQueue, setLoadingQueue] = useState(false)
   const [queueError, setQueueError] = useState('')
+
+  // Doctors list for assigning
+  const [doctors, setDoctors] = useState([])
+  const [loadingDoctors, setLoadingDoctors] = useState(false)
+  const [doctorsError, setDoctorsError] = useState('')
+  const [selectedDoctor, setSelectedDoctor] = useState({})
+  const [assigning, setAssigning] = useState({})
+  const [assignError, setAssignError] = useState({})
+  const [doctorsByPoli, setDoctorsByPoli] = useState({})
 
   const poliNames = {
     1: 'Poli Umum',
@@ -201,7 +188,53 @@ function FrontOfficeDashboard() {
     }
 
     loadQueue()
+    // load doctors list once
+    const loadDoctors = async () => {
+      setLoadingDoctors(true)
+      setDoctorsError('')
+      try {
+        const res = await fetch(`${API_BASE_URL}/dokter/`)
+        if (!res.ok) throw new Error('Gagal mengambil daftar dokter')
+        const data = await res.json()
+        setDoctors(Array.isArray(data) ? data : [])
+      } catch (err) {
+        console.error(err)
+        setDoctorsError('Tidak dapat memuat daftar dokter')
+        setDoctors([])
+      } finally {
+        setLoadingDoctors(false)
+      }
+    }
+
+    loadDoctors()
   }, [])
+
+  useEffect(() => {
+    // for each unique poli id in the active queue, fetch doctors for that poli
+    const poliIds = Array.from(new Set(activeQueue.map(i => i.idPoli ?? i.id_poli ?? i.poli_id ?? i.poli ?? i.poliId).filter(Boolean)))
+    poliIds.forEach(async (pid) => {
+      const key = String(pid)
+      if (Object.prototype.hasOwnProperty.call(doctorsByPoli, key)) return
+      // mark as loading
+      setDoctorsByPoli(prev => ({ ...prev, [key]: null }))
+      try {
+        const res = await fetch(`${API_BASE_URL}/dokter/?idPoli=${encodeURIComponent(pid)}`)
+        if (!res.ok) throw new Error('Gagal mengambil dokter untuk poli ' + pid)
+        const data = await res.json()
+        setDoctorsByPoli(prev => ({ ...prev, [key]: Array.isArray(data) ? data : [] }))
+      } catch (err) {
+        console.error(err)
+        setDoctorsByPoli(prev => ({ ...prev, [key]: [] }))
+      }
+    })
+  }, [activeQueue])
+
+  useEffect(() => {
+    // debug: log doctors loaded for troubleshooting
+    if (doctors && doctors.length > 0) {
+      console.debug('Loaded doctors sample:', doctors.slice(0, 5))
+    }
+  }, [doctors])
 
   return (
     <div className="fo-dashboard">
@@ -451,7 +484,76 @@ function FrontOfficeDashboard() {
                     <div key={item.id} className="fo-table-row">
                       <span>{item.nomorAntrian}</span>
                       <span>{item.namaPasien || '-'}</span>
-                      <span>{item.namaDokter || '-'}</span>
+                      <span>
+                        {item.namaDokter && item.namaDokter !== '' ? (
+                          item.namaDokter
+                        ) : (
+                          <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+                            <select
+                              value={selectedDoctor[item.id] || ''}
+                              onChange={(e) => setSelectedDoctor(prev => ({ ...prev, [item.id]: e.target.value }))}
+                              disabled={loadingDoctors}
+                            >
+                              <option value="">Pilih Dokter</option>
+                              {
+                                // filter doctors by poli of the rujukan/antrian
+                                (() => {
+                                  const poliId = item.idPoli ?? item.id_poli ?? item.poli_id ?? item.poliId
+                                  const avail = doctors.filter(d => {
+                                    const dp = d.idPoli ?? d.id_poli ?? d.poli_id ?? d.poliId ?? d.poli ?? d.polis ?? d.polies
+                                    if (Array.isArray(dp)) {
+                                      return dp.some(x => String(x?.id ?? x) === String(poliId))
+                                    }
+                                    if (dp && typeof dp === 'object') {
+                                      return String(dp.id ?? dp.id_poli ?? dp.poli_id ?? dp) === String(poliId)
+                                    }
+                                    return String(dp) === String(poliId)
+                                  })
+                                  if (avail.length === 0) {
+                                    return (
+                                      <option value="" disabled>Tidak ada dokter untuk poli ini</option>
+                                    )
+                                  }
+                                  return avail.map((d) => (
+                                    <option key={d.id} value={d.id}>{d.namaDokter}</option>
+                                  ))
+                                })()
+                              }
+                            </select>
+                            <button
+                              type="button"
+                              disabled={!selectedDoctor[item.id] || assigning[item.id]}
+                              onClick={async () => {
+                                const docId = selectedDoctor[item.id]
+                                if (!docId) return
+                                setAssigning(prev => ({ ...prev, [item.id]: true }))
+                                setAssignError(prev => ({ ...prev, [item.id]: '' }))
+                                try {
+                                  const resp = await fetch(`${API_BASE_URL}/antrian/${item.id}`, {
+                                    method: 'PATCH',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ idDokter: Number(docId) }),
+                                  })
+                                  if (!resp.ok) {
+                                    const t = await resp.text()
+                                    throw new Error(t || 'Gagal assign dokter')
+                                  }
+                                  // update local queue
+                                  setActiveQueue(prev => prev.map(q => q.id === item.id ? { ...q, idDokter: Number(docId), namaDokter: (doctors.find(x => String(x.id) === String(docId)) || {}).namaDokter || '' } : q))
+                                } catch (err) {
+                                  console.error(err)
+                                  setAssignError(prev => ({ ...prev, [item.id]: 'Gagal update dokter' }))
+                                } finally {
+                                  setAssigning(prev => ({ ...prev, [item.id]: false }))
+                                }
+                              }}
+                            >
+                              {assigning[item.id] ? 'Menyimpan...' : 'Simpan'}
+                            </button>
+                          </div>
+                        )}
+                        {assignError[item.id] && <div style={{color: '#b91c1c', fontSize: 12}}>{assignError[item.id]}</div>}
+                      </span>
                       <span>{getPoliName(item.idPoli)}</span>
                     </div>
                   ))
