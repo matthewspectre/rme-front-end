@@ -188,6 +188,8 @@ function FrontOfficeDashboard() {
     }
 
     loadQueue()
+    // load patients list on mount
+    loadPatients()
     // load doctors list once
     const loadDoctors = async () => {
       setLoadingDoctors(true)
@@ -208,6 +210,24 @@ function FrontOfficeDashboard() {
 
     loadDoctors()
   }, [])
+
+  // load patients helper
+  async function loadPatients() {
+    setLoadingPatients(true)
+    setPatientListError('')
+    try {
+      const res = await fetch(`${API_BASE_URL}/patients/?id_data_klinik=${clinicId}`)
+      if (!res.ok) throw new Error('Gagal mengambil daftar pasien')
+      const data = await res.json()
+      setPatients(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error(err)
+      setPatientListError('Tidak dapat memuat daftar pasien')
+      setPatients([])
+    } finally {
+      setLoadingPatients(false)
+    }
+  }
 
   useEffect(() => {
     // for each unique poli id in the active queue, fetch doctors for that poli
@@ -411,9 +431,14 @@ function FrontOfficeDashboard() {
             </section>
 
             <section className="fo-card fo-list-card">
-              <div className="fo-card-header">
-                <h2>Daftar Pasien</h2>
+              <div className="fo-card-header" style={{display: 'flex', alignItems: 'center', gap: 12}}>
+                <h2 style={{margin: 0}}>Daftar Pasien</h2>
                 <span className="fo-card-caption">Data Klinik {clinicId}</span>
+                <div style={{marginLeft: 'auto'}}>
+                  <button type="button" onClick={loadPatients} disabled={loadingPatients} style={{padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer'}}>
+                    {loadingPatients ? 'Memuat...' : 'Refresh'}
+                  </button>
+                </div>
               </div>
 
               {loadingPatients ? (

@@ -673,6 +673,106 @@ body {
   color: #e5f3ff;
 }
 
+/* Anamnesis table */
+.anamnesis-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+}
+.anamnesis-table thead th {
+  text-align: left;
+  padding: 12px 10px;
+  font-weight: 700;
+  border-bottom: 1px solid #eef2f7;
+  font-size: 13px;
+}
+.anamnesis-table tbody td {
+  padding: 12px 10px;
+  border-bottom: 1px solid #f3f4f6;
+  font-size: 13px;
+  vertical-align: top;
+}
+.actions-cell {
+  display: flex;
+  gap: 8px;
+}
+.btn-ubah {
+  background: #fff3cd;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #92400e;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-hapus {
+  background: #fee2e2;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #9b1c1c;
+  font-weight: 700;
+  cursor: pointer;
+}
+.table-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
+}
+.pagination-left button {
+  margin-right: 6px;
+  padding: 6px 8px;
+}
+.pagination-right select {
+  margin-left: 6px;
+}
+.rows-info {
+  margin-left: 12px;
+  color: #6b7280;
+}
+
+/* Patient card */
+.patient-card {
+  background: linear-gradient(180deg,#0f9d58 0%, #10b981 100%);
+  color: #ffffff;
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 6px 18px rgba(16,24,40,0.08);
+}
+.patient-card .patient-header {
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+}
+.patient-card .patient-title {
+  font-weight:800;
+  font-size:14px;
+}
+.patient-card .patient-sub {
+  font-size:12px;
+  opacity:0.95;
+}
+.patient-card .patient-fields {
+  margin-top:12px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.patient-card .field-row {
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  font-size:13px;
+}
+.patient-card .field-label {
+  opacity:0.9;
+}
+.patient-card .field-value {
+  font-weight:700;
+}
+
 /* Responsif */
 @media (max-width: 900px) {
   .login-page {

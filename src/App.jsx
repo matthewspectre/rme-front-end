@@ -1,9 +1,6 @@
 import React, { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import DoctorDashboard from './doctor/DoctorDashboard'
-import PoliUmum from './doctor/PoliUmum'
-import PoliPenyakiDalam from './doctor/PoliPenyakiDalam'
-import PoliAnak from './doctor/PoliAnak'
 import FrontOfficeDashboard from './frontoffice/FrontOfficeDashboard'
 import ErrorBoundary from './ErrorBoundary'
 import { API_BASE_URL } from './api'
@@ -160,9 +157,7 @@ function App() {
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/dokter" element={<DoctorDashboard />} />
-        <Route path="/pemeriksaan" element={<PoliUmum />} />
-        <Route path="/pemeriksaan/penyaki-dalam" element={<PoliPenyakiDalam />} />
-        <Route path="/pemeriksaan/anak" element={<PoliAnak />} />
+        
         <Route path="/front-office" element={<FrontOfficeDashboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

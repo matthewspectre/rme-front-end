@@ -26,8 +26,8 @@ function DoctorDashboard() {
   const [now, setNow] = useState(new Date())
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
-    return () => clearInterval(id)
   }, [])
+
 
   const today = now.toLocaleString('id-ID', {
     weekday: 'long',
@@ -40,8 +40,10 @@ function DoctorDashboard() {
   })
 
   const [appointments, setAppointments] = useState([])
+  const [myDokter, setMyDokter] = useState(null)
   const [loadingAppointments, setLoadingAppointments] = useState(false)
   const [appointmentsError, setAppointmentsError] = useState('')
+  const [loadingRefresh, setLoadingRefresh] = useState(false)
 
   useEffect(() => {
     const loadAppointmentsForDoctor = async () => {
@@ -60,6 +62,7 @@ function DoctorDashboard() {
         const dokters = Array.isArray(dokterData) ? dokterData : []
 
         const myDokter = dokters.find((d) => (d.id_user == userId) || (d.idUser == userId) || (d.user_id == userId))
+        setMyDokter(myDokter || null)
 
         if (!myDokter) {
           // tidak ditemukan dokter untuk user ini -> kosongkan daftar
@@ -118,6 +121,8 @@ function DoctorDashboard() {
 
           return {
             id: it.id,
+            patientId: pid || (p && p.id) || null,
+            patient: p || null,
             nomorAntrian: idx + 1,
             name: it.namaPasien || '-',
             patientNoRekam: noRekam,
@@ -147,43 +152,28 @@ function DoctorDashboard() {
 
   const handlePeriksa = (item) => {
     try {
-      console.log('PERIKSA clicked for', item)
-      // placeholder action - navigate or open modal can be implemented later
-      alert(`Periksa pasien: ${item.name}`)
+      // navigate to pemeriksaan and pass patient id and dokter id
+      const pid = item.patientId ?? item.patient?.id
+      const dokterId = myDokter?.id ?? null
+      if (!pid) {
+        alert('Tidak dapat menemukan id pasien untuk pemeriksaan')
+        return
+      }
+
+      // determine target poli route from myDokter (fallback to /pemeriksaan)
+      const poliVal = myDokter?.poli ?? myDokter?.idPoli ?? myDokter?.poli_id ?? myDokter?.id_poli ?? null
+      let path = '/pemeriksaan'
+      if (Number(poliVal) === 1) path = '/pemeriksaan'
+      else if (Number(poliVal) === 2) path = '/pemeriksaan/penyaki-dalam'
+      else if (Number(poliVal) === 3) path = '/pemeriksaan/anak'
+
+      navigate(path, { state: { idPasien: pid, idDokter: dokterId } })
     } catch (e) {
       console.error(e)
     }
   }
 
-  const navigateToPemeriksaan = async () => {
-    try {
-      const stored = localStorage.getItem('user')
-      const parsed = stored ? JSON.parse(stored) : null
-      const userId = parsed?.id ?? parsed?.userId ?? parsed?.id_user
-
-      const dokterRes = await fetch(`${API_BASE_URL}/dokter/`)
-      if (!dokterRes.ok) throw new Error('Gagal mengambil daftar dokter')
-      const dokterData = await dokterRes.json()
-      const dokters = Array.isArray(dokterData) ? dokterData : []
-
-      const myDokter = dokters.find((d) => (d.id_user == userId) || (d.idUser == userId) || (d.user_id == userId))
-      const poliVal = myDokter?.poli ?? myDokter?.idPoli ?? myDokter?.poli_id ?? myDokter?.id_poli ?? null
-
-      if (Number(poliVal) === 1) {
-        navigate('/pemeriksaan')
-      } else if (Number(poliVal) === 2) {
-        navigate('/pemeriksaan/penyaki-dalam')
-      } else if (Number(poliVal) === 3) {
-        navigate('/pemeriksaan/anak')
-      } else {
-        // fallback
-        navigate('/pemeriksaan')
-      }
-    } catch (e) {
-      console.error('Gagal navigasi pemeriksaan', e)
-      navigate('/pemeriksaan')
-    }
-  }
+  
 
   const initials = user.full_name
     .split(' ')
@@ -209,10 +199,7 @@ function DoctorDashboard() {
             <span className="sidebar-icon">🏠</span>
             <span>Dashboard Utama</span>
           </button>
-          <button className="sidebar-item" onClick={navigateToPemeriksaan}>
-            <span className="sidebar-icon">🩺</span>
-            <span>Pemeriksaan</span>
-          </button>
+        
         </nav>
       </aside>
 
@@ -256,10 +243,15 @@ function DoctorDashboard() {
 
         <section className="doctor-grid">
           <section className="doctor-card doctor-appointments">
-            <div className="card-header">
-              <h2>Janji Temu Hari Ini</h2>
-              <span className="card-caption">{today}</span>
-            </div>
+                <div className="card-header" style={{display: 'flex', alignItems: 'center', gap: 12}}>
+                  <h2 style={{margin: 0}}>Janji Temu Hari Ini</h2>
+                  <span className="card-caption">{today}</span>
+                  <div style={{marginLeft: 'auto'}}>
+                    <button type="button" onClick={async () => { setLoadingRefresh(true); await loadAppointmentsForDoctor(); setLoadingRefresh(false) }} disabled={loadingAppointments} style={{padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer'}}>
+                      {loadingAppointments ? 'Memuat...' : 'Refresh'}
+                    </button>
+                  </div>
+                </div>
             <div className="appointments-table">
               <div className="appointments-header">
                 <span>No. Antrian</span>
