@@ -29,6 +29,18 @@ function PoliUmum() {
   const [anamnesisHistory, setAnamnesisHistory] = useState([])
   const [loadingAnamnesisHistory, setLoadingAnamnesisHistory] = useState(false)
   const [anamnesisHistoryError, setAnamnesisHistoryError] = useState('')
+  const [isHidingAnamnesisId, setIsHidingAnamnesisId] = useState(null)
+  const [isEditingId, setIsEditingId] = useState(null)
+  const [isSubmittingEdit, setIsSubmittingEdit] = useState(false)
+  const [editForm, setEditForm] = useState({
+    text: '',
+    riwayat_pengobatan: '',
+    riwayat_keluarga: '',
+    riwayat_penyakit_dahulu: '',
+    riwayat_penyakit_lain: '',
+    status_kehamilan: '',
+    keluhan_tambahan: ''
+  })
 
   const [hoveredPatientId, setHoveredPatientId] = useState(null)
   const lastFetchedPatientId = useRef(null)
@@ -84,7 +96,7 @@ function PoliUmum() {
     return () => { cancelled = true }
   }, [dokterId])
   // fetch anamnesis history for a given patient id
-  const fetchAnamnesisHistory = async (id) => {
+  const fetchAnamnesisHistory = async (id, opts = {}) => {
     try {
       if (!id) {
         setAnamnesisHistory([])
@@ -94,7 +106,7 @@ function PoliUmum() {
       }
 
       const pidStr = String(id)
-      if (lastFetchedPatientId.current === pidStr) return
+      if (!opts.forceRefresh && lastFetchedPatientId.current === pidStr) return
       lastFetchedPatientId.current = pidStr
 
       if (historyFetchController.current) {
@@ -106,22 +118,30 @@ function PoliUmum() {
       setLoadingAnamnesisHistory(true)
       setAnamnesisHistoryError('')
 
-      const urlsToTry = [
-        `${API_BASE_URL}/anamnesis?idPasien=${encodeURIComponent(id)}`,
+      // allow forcing backend-first attempts when navigating from other pages
+      // prefer trailing-slash forms first to avoid 301 redirects
+      const proxyUrls = [
         `${API_BASE_URL}/anamnesis/?idPasien=${encodeURIComponent(id)}`,
-        `http://localhost:8080/anamnesis?idPasien=${encodeURIComponent(id)}`,
-        `http://localhost:8080/anamnesis/?idPasien=${encodeURIComponent(id)}`
+        `${API_BASE_URL}/anamnesis?idPasien=${encodeURIComponent(id)}`
       ]
+      const backendUrls = [
+        `http://localhost:8080/anamnesis/?idPasien=${encodeURIComponent(id)}`,
+        `http://localhost:8080/anamnesis?idPasien=${encodeURIComponent(id)}`
+      ]
+      const urlsToTry = opts.forceBackend ? [...backendUrls, ...proxyUrls] : [...proxyUrls, ...backendUrls]
 
       let lastErr = null
       let res = null
       for (const u of urlsToTry) {
         try {
+          console.debug('[fetchAnamnesisHistory] trying', u)
           res = await fetch(u, { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store', signal })
+          console.debug('[fetchAnamnesisHistory] response', u, res && res.status)
           if (res && res.ok) break
           lastErr = `HTTP ${res.status} ${res.statusText} @ ${u}`
         } catch (e) {
           if (e.name === 'AbortError') return
+          console.error('[fetchAnamnesisHistory] fetch error', u, e)
           lastErr = e
         }
       }
@@ -135,6 +155,7 @@ function PoliUmum() {
       const contentType = res.headers && res.headers.get ? (res.headers.get('content-type') || '') : ''
       if (!contentType.includes('application/json')) {
         const text = await res.text().catch(() => '')
+        console.warn('[fetchAnamnesisHistory] non-json response', { urlAttempted: urlsToTry, status: res.status, text: String(text).slice(0,500) })
         setAnamnesisHistory([])
         setAnamnesisHistoryError(`Unexpected response (not JSON): ${String(text).slice(0,200)}`)
         return
@@ -163,6 +184,139 @@ function PoliUmum() {
       }
     }
   }, [hoveredPatientId, selectedPatient, antrian])
+
+  // hide (soft-delete) an anamnesis entry by calling backend hide endpoint
+  const handleHideAnamnesis = async (row) => {
+    const aid = row?.id_anamnesis ?? row?.idAnamnesis ?? row?.id ?? null
+    if (!aid) {
+      console.warn('No anamnesis id available for hide action', row)
+      return
+    }
+    setIsHidingAnamnesisId(aid)
+    try {
+      const proxyUrl = `${API_BASE_URL}/anamnesis/${aid}/hide`
+      const backendUrl = `http://localhost:8080/anamnesis/${aid}/hide`
+      const urls = [proxyUrl, backendUrl]
+      let lastErr = null
+      let success = false
+      for (const u of urls) {
+        try {
+          // PATCH without body; include headers. Calling proxy first avoids CORS.
+          const res = await fetch(u, { method: 'PATCH', credentials: 'include', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, cache: 'no-store' })
+          if (res && res.ok) {
+            success = true
+            break
+          }
+          lastErr = `HTTP ${res.status} ${res.statusText} @ ${u}`
+        } catch (e) {
+          // fetch can throw on network/CORS errors; keep trying fallback
+          console.warn('hide fetch error, trying next', u, e)
+          lastErr = e
+        }
+      }
+
+      if (!success) {
+        console.error('Failed to hide anamnesis (all attempts)', lastErr)
+        setAnamnesisMessage('Gagal menghapus riwayat anamnesis')
+        return
+      }
+
+      const pid = selectedPatient?.id ?? selectedPatient?.idPasien ?? selectedPatient?.id_pasien ?? (antrian[0]?.idPasien ?? antrian[0]?.id)
+                            await fetchAnamnesisHistory(pid, { forceRefresh: true })
+      setAnamnesisMessage('Riwayat berhasil dihapus')
+    } catch (e) {
+      console.error('Error hiding anamnesis', e)
+      setAnamnesisMessage('Gagal menghapus riwayat anamnesis')
+    } finally {
+      setIsHidingAnamnesisId(null)
+    }
+  }
+
+  // open edit modal and load anamnesis by id
+  const handleOpenEdit = async (row) => {
+    const aid = row?.id_anamnesis ?? row?.idAnamnesis ?? row?.id ?? null
+    if (!aid) return
+    setIsEditingId(aid)
+    // try proxy first, then backend
+    const proxyUrl = `${API_BASE_URL}/anamnesis/${aid}`
+    const backendUrl = `http://localhost:8080/anamnesis/${aid}`
+    const urls = [proxyUrl, backendUrl]
+    let lastErr = null
+    try {
+      for (const u of urls) {
+        try {
+          const res = await fetch(u, { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' })
+          if (res && res.ok) {
+            const data = await res.json()
+            setEditForm({
+              text: data.text ?? '',
+              riwayat_pengobatan: data.riwayat_pengobatan ?? data.riwayatPengobatan ?? '',
+              riwayat_keluarga: data.riwayat_keluarga ?? data.riwayatKeluarga ?? '',
+              riwayat_penyakit_dahulu: data.riwayat_penyakit_dahulu ?? data.riwayatPenyakitDahulu ?? '',
+              riwayat_penyakit_lain: data.riwayat_penyakit_lain ?? data.riwayatPenyakitLain ?? '',
+              status_kehamilan: data.status_kehamilan ?? data.statusKehamilan ?? '',
+              keluhan_tambahan: data.keluhan_tambahan ?? data.keluhanTambahan ?? ''
+            })
+            return
+          }
+          lastErr = `HTTP ${res.status} ${res.statusText} @ ${u}`
+        } catch (e) {
+          lastErr = e
+        }
+      }
+      console.error('Failed loading anamnesis for edit', lastErr)
+      setAnamnesisMessage('Gagal memuat data untuk ubah')
+      setIsEditingId(null)
+    } catch (e) {
+      console.error('Error opening edit', e)
+      setAnamnesisMessage('Gagal memuat data untuk ubah')
+      setIsEditingId(null)
+    }
+  }
+
+  const handleSubmitEdit = async () => {
+    const aid = isEditingId
+    if (!aid) return
+    setIsSubmittingEdit(true)
+    try {
+      const payload = {
+        text: editForm.text,
+        riwayat_pengobatan: editForm.riwayat_pengobatan,
+        riwayat_keluarga: editForm.riwayat_keluarga,
+        riwayat_penyakit_dahulu: editForm.riwayat_penyakit_dahulu,
+        riwayat_penyakit_lain: editForm.riwayat_penyakit_lain,
+        status_kehamilan: editForm.status_kehamilan,
+        keluhan_tambahan: editForm.keluhan_tambahan
+      }
+      const proxyUrl = `${API_BASE_URL}/anamnesis/${aid}`
+      const backendUrl = `http://localhost:8080/anamnesis/${aid}`
+      const urls = [proxyUrl, backendUrl]
+      let lastErr = null
+      let success = false
+      for (const u of urls) {
+        try {
+          const res = await fetch(u, { method: 'PATCH', credentials: 'include', headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload), cache: 'no-store' })
+          if (res && res.ok) { success = true; break }
+          lastErr = `HTTP ${res.status} ${res.statusText} @ ${u}`
+        } catch (e) { lastErr = e }
+      }
+      if (!success) {
+        console.error('Failed updating anamnesis', lastErr)
+        setAnamnesisMessage('Gagal memperbarui anamnesis')
+        return
+      }
+      // refresh history and close modal
+      const pid = selectedPatient?.id ?? selectedPatient?.idPasien ?? selectedPatient?.id_pasien ?? (antrian[0]?.idPasien ?? antrian[0]?.id)
+      await fetchAnamnesisHistory(pid, { forceRefresh: true })
+      setAnamnesisMessage('Riwayat berhasil diperbarui')
+      setIsEditingId(null)
+    } catch (e) {
+      console.error('Error submitting edit', e)
+      setAnamnesisMessage('Gagal memperbarui anamnesis')
+    } finally {
+      setIsSubmittingEdit(false)
+    }
+  }
  
 
   useEffect(() => {
@@ -239,17 +393,23 @@ function PoliUmum() {
   const location = useLocation()
 
   useEffect(() => {
-    // if navigated here with state.idPasien, select that patient after antrian loads
+    // if navigated here with state.idPasien, select that patient (even if antrian not yet loaded)
     const idFromNav = location?.state?.idPasien
-    if (idFromNav && antrian && antrian.length > 0) {
-      const found = antrian.find(a => String(a.idPasien ?? a.id_pasien ?? a.pasien_id ?? a.id) === String(idFromNav))
+    if (idFromNav) {
+      const found = (antrian || []).find(a => String(a.idPasien ?? a.id_pasien ?? a.pasien_id ?? a.id) === String(idFromNav))
       if (found) {
         handleSelectPatient(found)
       } else {
         handleSelectPatient({ idPasien: idFromNav })
       }
       // also mark as hovered so anamnesis/history shows immediately
-      try { setHoveredPatientId(idFromNav) } catch (e) { /* ignore */ }
+        try {
+          setHoveredPatientId(idFromNav)
+          setSelectedTab('anamnesis')
+          // trigger history fetch immediately for the navigated patient id
+          // force backend-first to avoid proxy redirect/login HTML responses
+          fetchAnamnesisHistory(idFromNav, { forceBackend: true })
+      } catch (e) { /* ignore */ }
     }
   }, [location, antrian])
 
@@ -258,29 +418,24 @@ function PoliUmum() {
     <div style={{ width: 360, display: 'flex' }}>
       <div style={{ background: 'linear-gradient(180deg,#0f766e 0%, #047857 100%)', color: '#fff', borderRadius: 8, padding: 18, width: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', boxSizing: 'border-box' }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPatient ? (selectedPatient.namaPasien || selectedPatient.full_name || selectedPatient.nama || '-') : (antrian[0]?.namaPasien || ' - ')}</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPatient ? (selectedPatient.namaPasien || selectedPatient.full_name || selectedPatient.nama || '') : (antrian[0]?.namaPasien || '')}</div>
           <div style={{ opacity: 0.9, marginTop: 8 }}>{selectedPatient?.poliklinik || selectedPatient?.poli || '-'}</div>
 
           <div style={{ marginTop: 12, fontSize: 13 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Tgl Masuk</div><div>{selectedPatient?.tanggalMasuk || '-'}</div></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>NIK</div><div>{selectedPatient?.nik || '-'}</div></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>JK</div><div>{selectedPatient?.jenisKelamin || selectedPatient?.jk || '-'}</div></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>TTL</div><div>{selectedPatient?.tempatTanggalLahir || (selectedPatient?.tempatLahir || selectedPatient?.ttl || '-')}</div></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>No. Telp</div><div>{selectedPatient?.nomorTelepon || selectedPatient?.telepon || selectedPatient?.noTelp || '-'}</div></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Alamat</div><div>{selectedPatient?.alamat || '-'}</div></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Kategori</div><div>{selectedPatient?.kategori || '-'}</div></div>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Pekerjaan</div><div>{selectedPatient?.pekerjaan || '-'}</div></div>
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '6px 12px', alignItems: 'start', lineHeight: '1.25' }}>
+              <div style={{ opacity: 0.9 }}>Tgl Masuk</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.tanggalMasuk || '-'}</div>
+              <div style={{ opacity: 0.9 }}>NIK</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.nik || '-'}</div>
+              <div style={{ opacity: 0.9 }}>JK</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.jenisKelamin || selectedPatient?.jk || '-'}</div>
+              <div style={{ opacity: 0.9 }}>TTL</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.tempatTanggalLahir || (selectedPatient?.tempatLahir || selectedPatient?.ttl || '-')}</div>
+              <div style={{ opacity: 0.9 }}>No. Telp</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.nomorTelepon || selectedPatient?.telepon || selectedPatient?.noTelp || '-'}</div>
+              <div style={{ opacity: 0.9 }}>Alamat</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.alamat || '-'}</div>
+              <div style={{ opacity: 0.9 }}>Kategori</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.kategori || '-'}</div>
+              <div style={{ opacity: 0.9 }}>Pekerjaan</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.pekerjaan || '-'}</div>
+            </div>
           </div>
         </div>
 
-        <div style={{ marginTop: 14, borderTop: '1px dashed rgba(255,255,255,0.15)', paddingTop: 12 }}>
-          <div style={{ fontSize: 13, opacity: 0.9 }}>Tekanan Darah : -</div>
-          <div style={{ fontSize: 13, opacity: 0.9 }}>Nadi : -</div>
-          <div style={{ fontSize: 13, opacity: 0.9 }}>RR : -</div>
-          <div style={{ fontSize: 13, opacity: 0.9 }}>Saturasi Oksigen : -</div>
-          <div style={{ fontSize: 13, opacity: 0.9 }}>Temperatur : -</div>
-          <div style={{ fontSize: 13, opacity: 0.9 }}>Berat Badan : -</div>
-        </div>
+        
       </div>
     </div>
   )
@@ -539,7 +694,7 @@ function PoliUmum() {
                             setAnamnesisMessage('Anamnesis tersimpan.')
                             // refresh history for this patient so new entry appears immediately
                             try {
-                              await fetchAnamnesisHistory(pid)
+                              await fetchAnamnesisHistory(pid, { forceRefresh: true })
                             } catch (e) {
                               console.error('Failed refreshing anamnesis after save', e)
                             }
@@ -573,16 +728,18 @@ function PoliUmum() {
                     <div style={{ color: '#64748b' }}>Belum ada riwayat anamnesis.</div>
                   ) : (
                     <div style={{ overflowX: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1400, whiteSpace: 'nowrap' }}>
                         <thead>
                           <tr style={{ textAlign: 'left', borderBottom: '1px solid #e6eef8' }}>
                             <th style={{ padding: '12px 8px', width: 110 }}>Aksi</th>
                             <th style={{ padding: '12px 8px' }}>Tanggal</th>
                             <th style={{ padding: '12px 8px' }}>Keluhan Utama</th>
-                            <th style={{ padding: '12px 8px' }}>Keterangan Keluhan Utama</th>
                             <th style={{ padding: '12px 8px' }}>Keluhan Tambahan</th>
                             <th style={{ padding: '12px 8px' }}>Status Kehamilan</th>
                             <th style={{ padding: '12px 8px' }}>Riwayat Pengobatan</th>
+                            <th style={{ padding: '12px 8px' }}>Riwayat Keluarga</th>
+                            <th style={{ padding: '12px 8px' }}>Riwayat Penyakit Dahulu</th>
+                            <th style={{ padding: '12px 8px' }}>Riwayat Penyakit Lain</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -590,16 +747,18 @@ function PoliUmum() {
                             <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
                               <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>
                                 <div style={{ display: 'flex', gap: 8, flexDirection: 'column' }}>
-                                  <button type="button" onClick={() => console.log('ubah', row)} style={{ background: '#fef3c7', border: 'none', padding: '8px 10px', borderRadius: 8, cursor: 'pointer' }}>UBAH</button>
-                                  <button type="button" onClick={() => console.log('hapus', row)} style={{ background: '#fee2e2', border: 'none', padding: '8px 10px', borderRadius: 8, cursor: 'pointer' }}>HAPUS</button>
+                                  <button type="button" onClick={() => handleOpenEdit(row)} style={{ background: '#fef3c7', border: 'none', padding: '8px 10px', borderRadius: 8, cursor: 'pointer' }}>UBAH</button>
+                                  <button type="button" onClick={() => handleHideAnamnesis(row)} disabled={isHidingAnamnesisId === (row?.id_anamnesis ?? row?.idAnamnesis ?? row?.id)} style={{ background: '#fee2e2', border: 'none', padding: '8px 10px', borderRadius: 8, cursor: 'pointer' }}>{isHidingAnamnesisId === (row?.id_anamnesis ?? row?.idAnamnesis ?? row?.id) ? 'Menghapus...' : 'HAPUS'}</button>
                                 </div>
                               </td>
                               <td style={{ padding: '10px 8px', verticalAlign: 'top', color: '#475569' }}>{row.date_make ?? row.dateMake ?? '-'}</td>
                               <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{row.text ?? '-'}</td>
-                              <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{row.keterangan_keluhan_utama ?? row.keteranganKeluhanUtama ?? '-'}</td>
                               <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{row.keluhan_tambahan ?? row.keluhanTambahan ?? '-'}</td>
                               <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{row.status_kehamilan ?? row.statusKehamilan ?? '-'}</td>
                               <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{row.riwayat_pengobatan ?? row.riwayatPengobatan ?? '-'}</td>
+                              <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{row.riwayat_keluarga ?? row.riwayatKeluarga ?? '-'}</td>
+                              <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{row.riwayat_penyakit_dahulu ?? row.riwayatPenyakitDahulu ?? '-'}</td>
+                              <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{row.riwayat_penyakit_lain ?? row.riwayatPenyakitLain ?? '-'}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -619,6 +778,54 @@ function PoliUmum() {
             )}
           </div>
         </div>
+
+            {/* Edit modal */}
+            {isEditingId && (
+              <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60 }}>
+                <div style={{ width: 640, maxHeight: '90vh', overflowY: 'auto', background: '#fff', borderRadius: 8, padding: 18 }}>
+                  <h3 style={{ marginTop: 0 }}>Ubah</h3>
+                  <div style={{ display: 'grid', gap: 12 }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Ringkasan Anamnesis</label>
+                      <textarea value={editForm.text} onChange={(e) => setEditForm({ ...editForm, text: e.target.value })} rows={3} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Keluhan Tambahan</label>
+                      <input value={editForm.keluhan_tambahan} onChange={(e) => setEditForm({ ...editForm, keluhan_tambahan: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Status Kehamilan</label>
+                      <select value={editForm.status_kehamilan} onChange={(e) => setEditForm({ ...editForm, status_kehamilan: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8', background: '#fff' }}>
+                        <option value="">Pilih status kehamilan</option>
+                        <option value="tidak hamil">tidak hamil</option>
+                        <option value="hamil">hamil</option>
+                        <option value="tidak diketahui">tidak diketahui</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Riwayat Pengobatan</label>
+                      <input value={editForm.riwayat_pengobatan} onChange={(e) => setEditForm({ ...editForm, riwayat_pengobatan: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Riwayat Keluarga</label>
+                      <input value={editForm.riwayat_keluarga} onChange={(e) => setEditForm({ ...editForm, riwayat_keluarga: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Riwayat Penyakit Dahulu</label>
+                      <input value={editForm.riwayat_penyakit_dahulu} onChange={(e) => setEditForm({ ...editForm, riwayat_penyakit_dahulu: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: 6, fontWeight: 600 }}>Riwayat Penyakit Lain</label>
+                      <input value={editForm.riwayat_penyakit_lain} onChange={(e) => setEditForm({ ...editForm, riwayat_penyakit_lain: e.target.value })} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button onClick={handleSubmitEdit} disabled={isSubmittingEdit} style={{ background: '#0ea5a4', color: '#fff', padding: '8px 14px', borderRadius: 6, border: 'none', cursor: 'pointer' }}>{isSubmittingEdit ? 'Menyimpan...' : 'Simpan'}</button>
+                      <button onClick={() => setIsEditingId(null)} disabled={isSubmittingEdit} style={{ background: '#e6e6e6', padding: '8px 14px', borderRadius: 6, border: 'none', cursor: 'pointer' }}>Batal</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
         <section style={{padding:24}}>
           <div style={{color:'#374151'}}>Ini adalah tampilan awal untuk <strong>Poli Umum</strong>. Sidebar dan header sudah tersedia.</div>

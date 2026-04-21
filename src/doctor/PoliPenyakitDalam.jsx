@@ -210,28 +210,23 @@ function PoliPenyakitDalam() {
               <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                 <div style={{ width: 360 }}>
                   <div style={{ background: 'linear-gradient(180deg,#0f766e 0%, #047857 100%)', color: '#fff', borderRadius: 8, padding: 18 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPatient ? (selectedPatient.namaPasien || selectedPatient.full_name || selectedPatient.nama || '-') : (antrian[0]?.namaPasien || ' - ')}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPatient ? (selectedPatient.namaPasien || selectedPatient.full_name || selectedPatient.nama || '') : (antrian[0]?.namaPasien || '')}</div>
                     <div style={{ opacity: 0.9, marginTop: 8 }}>{selectedPatient?.poliklinik || selectedPatient?.poli || '-'}</div>
 
                     <div style={{ marginTop: 12, fontSize: 13 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Tgl Masuk</div><div>{selectedPatient?.tanggalMasuk || '-'}</div></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>NIK</div><div>{selectedPatient?.nik || '-'}</div></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>JK</div><div>{selectedPatient?.jenisKelamin || selectedPatient?.jk || '-'}</div></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>TTL</div><div>{selectedPatient?.tempatTanggalLahir || (selectedPatient?.tempatLahir || selectedPatient?.ttl || '-')}</div></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>No. Telp</div><div>{selectedPatient?.nomorTelepon || selectedPatient?.telepon || selectedPatient?.noTelp || '-'}</div></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Alamat</div><div>{selectedPatient?.alamat || '-'}</div></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Kategori</div><div>{selectedPatient?.kategori || '-'}</div></div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Pekerjaan</div><div>{selectedPatient?.pekerjaan || '-'}</div></div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '6px 12px', alignItems: 'start', lineHeight: '1.25' }}>
+                        <div style={{ opacity: 0.9 }}>Tgl Masuk</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.tanggalMasuk || '-'}</div>
+                        <div style={{ opacity: 0.9 }}>NIK</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.nik || '-'}</div>
+                        <div style={{ opacity: 0.9 }}>JK</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.jenisKelamin || selectedPatient?.jk || '-'}</div>
+                        <div style={{ opacity: 0.9 }}>TTL</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.tempatTanggalLahir || (selectedPatient?.tempatLahir || selectedPatient?.ttl || '-')}</div>
+                        <div style={{ opacity: 0.9 }}>No. Telp</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.nomorTelepon || selectedPatient?.telepon || selectedPatient?.noTelp || '-'}</div>
+                        <div style={{ opacity: 0.9 }}>Alamat</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.alamat || '-'}</div>
+                        <div style={{ opacity: 0.9 }}>Kategori</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.kategori || '-'}</div>
+                        <div style={{ opacity: 0.9 }}>Pekerjaan</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.pekerjaan || '-'}</div>
+                      </div>
                     </div>
 
-                    <div style={{ marginTop: 14, borderTop: '1px dashed rgba(255,255,255,0.15)', paddingTop: 12 }}>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Tekanan Darah : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Nadi : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>RR : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Saturasi Oksigen : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Temperatur : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Berat Badan : -</div>
-                    </div>
+                    
                   </div>
                 </div>
 
@@ -244,7 +239,7 @@ function PoliPenyakitDalam() {
               <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
                 <div style={{ width: 360 }}>
                   <div style={{ background: 'linear-gradient(180deg,#0f766e 0%, #047857 100%)', color: '#fff', borderRadius: 8, padding: 18 }}>
-                    <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPatient ? (selectedPatient.namaPasien || selectedPatient.full_name || selectedPatient.nama || '-') : (antrian[0]?.namaPasien || ' - ')}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPatient ? (selectedPatient.namaPasien || selectedPatient.full_name || selectedPatient.nama || '') : (antrian[0]?.namaPasien || '')}</div>
                     <div style={{ opacity: 0.9, marginTop: 8 }}>{selectedPatient?.poliklinik || selectedPatient?.poli || '-'}</div>
 
                     <div style={{ marginTop: 12, fontSize: 13 }}>
@@ -258,14 +253,7 @@ function PoliPenyakitDalam() {
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Pekerjaan</div><div>{selectedPatient?.pekerjaan || '-'}</div></div>
                     </div>
 
-                    <div style={{ marginTop: 14, borderTop: '1px dashed rgba(255,255,255,0.15)', paddingTop: 12 }}>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Tekanan Darah : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Nadi : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>RR : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Saturasi Oksigen : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Temperatur : -</div>
-                      <div style={{ fontSize: 13, opacity: 0.9 }}>Berat Badan : -</div>
-                    </div>
+                    
                   </div>
                 </div>
 
