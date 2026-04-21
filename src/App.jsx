@@ -1,6 +1,9 @@
 import React, { useState } from 'react'
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import DoctorDashboard from './doctor/DoctorDashboard'
+import PoliUmum from './doctor/PoliUmum'
+import PoliPenyakitDalam from './doctor/PoliPenyakitDalam'
+import PoliAnak from './doctor/PoliAnak'
 import FrontOfficeDashboard from './frontoffice/FrontOfficeDashboard'
 import ErrorBoundary from './ErrorBoundary'
 import { API_BASE_URL } from './api'
@@ -152,12 +155,28 @@ function LoginPage() {
 }
 
 function App() {
+  const lastErrorRaw = typeof window !== 'undefined' ? window.localStorage.getItem('lastAppError') : null
+  const lastError = lastErrorRaw ? JSON.parse(lastErrorRaw) : null
+  // clear stored last error so it doesn't persist across reloads
+  if (typeof window !== 'undefined' && lastErrorRaw) {
+    try { window.localStorage.removeItem('lastAppError') } catch (e) {}
+  }
+
   return (
     <ErrorBoundary>
+      {lastError && (
+        <div style={{ background: '#fff3f2', border: '1px solid #fecaca', padding: 10, color: '#9f1239', margin: 8, borderRadius: 6 }}>
+          <strong>Terjadi error sebelumnya:</strong> {lastError.message}
+          <button style={{ marginLeft: 12 }} onClick={() => { localStorage.removeItem('lastAppError'); window.location.reload() }}>Clear</button>
+        </div>
+      )}
       <Routes>
         <Route path="/" element={<LoginPage />} />
         <Route path="/dokter" element={<DoctorDashboard />} />
-        
+        <Route path="/pemeriksaan/poli-umum" element={<PoliUmum />} />
+        <Route path="/pemeriksaan/poli-penyakit-dalam" element={<PoliPenyakitDalam />} />
+        <Route path="/pemeriksaan/poli-anak" element={<PoliAnak />} />
+
         <Route path="/front-office" element={<FrontOfficeDashboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

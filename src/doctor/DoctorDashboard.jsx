@@ -153,21 +153,25 @@ function DoctorDashboard() {
   const handlePeriksa = (item) => {
     try {
       // navigate to pemeriksaan and pass patient id and dokter id
-      const pid = item.patientId ?? item.patient?.id
+      const maybePid = item.patientId ?? item.patient?.id ?? item.idPasien ?? item.id_pasien ?? item.pasien_id ?? item.patientId
       const dokterId = myDokter?.id ?? null
+
+      console.debug('PERIKSA clicked', { item, maybePid, dokterId, myDokter })
+
+      const pid = maybePid
       if (!pid) {
         alert('Tidak dapat menemukan id pasien untuk pemeriksaan')
         return
       }
 
-      // determine target poli route from myDokter (fallback to /pemeriksaan)
+      // determine target poli route from myDokter
       const poliVal = myDokter?.poli ?? myDokter?.idPoli ?? myDokter?.poli_id ?? myDokter?.id_poli ?? null
       let path = '/pemeriksaan'
-      if (Number(poliVal) === 1) path = '/pemeriksaan'
-      else if (Number(poliVal) === 2) path = '/pemeriksaan/penyaki-dalam'
-      else if (Number(poliVal) === 3) path = '/pemeriksaan/anak'
+      if (Number(poliVal) === 1) path = '/pemeriksaan/poli-umum'
+      else if (Number(poliVal) === 2) path = '/pemeriksaan/poli-penyakit-dalam'
+      else if (Number(poliVal) === 3) path = '/pemeriksaan/poli-anak'
 
-      navigate(path, { state: { idPasien: pid, idDokter: dokterId } })
+      navigate(path, { state: { idPasien: pid, idDokter: dokterId, poli: poliVal } })
     } catch (e) {
       console.error(e)
     }
@@ -199,7 +203,35 @@ function DoctorDashboard() {
             <span className="sidebar-icon">🏠</span>
             <span>Dashboard Utama</span>
           </button>
-        
+          {/* Tampilkan tombol masuk ke menu poli sesuai poli dokter (1=Umum,2=Penyakit Dalam,3=Anak) */}
+          {myDokter && (() => {
+            const poliVal = myDokter?.poli ?? myDokter?.idPoli ?? myDokter?.poli_id ?? myDokter?.id_poli ?? null
+            if (Number(poliVal) === 1) {
+              return (
+                <button className="sidebar-item" onClick={() => { window.location.href = 'http://localhost:5173/pemeriksaan/poli-umum' }}>
+                  <span className="sidebar-icon">🩺</span>
+                  <span>Poli Umum</span>
+                </button>
+              )
+            }
+            if (Number(poliVal) === 2) {
+              return (
+                <button className="sidebar-item" onClick={() => { window.location.href = 'http://localhost:5173/pemeriksaan/poli-penyakit-dalam' }}>
+                  <span className="sidebar-icon">🫀</span>
+                  <span>Poli Penyakit Dalam</span>
+                </button>
+              )
+            }
+            if (Number(poliVal) === 3) {
+              return (
+                <button className="sidebar-item" onClick={() => { window.location.href = 'http://localhost:5173/pemeriksaan/poli-anak' }}>
+                  <span className="sidebar-icon">👶</span>
+                  <span>Poli Anak</span>
+                </button>
+              )
+            }
+            return null
+          })()}
         </nav>
       </aside>
 
@@ -218,6 +250,7 @@ function DoctorDashboard() {
               <div className="profile-info">
                 <span className="profile-name">{user.full_name}</span>
                 <span className="profile-role">{user.role_name || 'Dokter'}</span>
+                
               </div>
               <div className="profile-avatar">{initials}</div>
             </button>
