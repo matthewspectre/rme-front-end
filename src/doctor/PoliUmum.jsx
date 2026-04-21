@@ -107,7 +107,6 @@ function PoliUmum() {
 
       const pidStr = String(id)
       if (!opts.forceRefresh && lastFetchedPatientId.current === pidStr) return
-      lastFetchedPatientId.current = pidStr
 
       if (historyFetchController.current) {
         try { historyFetchController.current.abort() } catch (e) {}
@@ -163,6 +162,8 @@ function PoliUmum() {
 
       const data = await res.json()
       setAnamnesisHistory(Array.isArray(data) ? data : [])
+      // only mark as fetched after a successful JSON parse
+      lastFetchedPatientId.current = pidStr
     } catch (e) {
       console.error('Failed loading anamnesis history', e)
       setAnamnesisHistory([])
@@ -407,8 +408,8 @@ function PoliUmum() {
           setHoveredPatientId(idFromNav)
           setSelectedTab('anamnesis')
           // trigger history fetch immediately for the navigated patient id
-          // force backend-first to avoid proxy redirect/login HTML responses
-          fetchAnamnesisHistory(idFromNav, { forceBackend: true })
+          // prefer proxy-first to avoid CORS; still force refresh to update immediately
+          fetchAnamnesisHistory(idFromNav, { forceRefresh: true })
       } catch (e) { /* ignore */ }
     }
   }, [location, antrian])
