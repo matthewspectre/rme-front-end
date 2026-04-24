@@ -18,6 +18,14 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/pemeriksaan_laboratorium': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/pemeriksaan_ekg': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 })
