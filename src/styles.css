@@ -934,6 +934,20 @@ body {
   gap: 14px;
 }
 
+/* Right column wrapper for Front Office: make summary card stretch to column height */
+.fo-right {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  height: 100%;
+}
+
+.fo-right .fo-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
 .fo-main-register {
   padding-bottom: 28px;
 }

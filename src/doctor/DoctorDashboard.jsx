@@ -44,6 +44,7 @@ function DoctorDashboard() {
   const [loadingAppointments, setLoadingAppointments] = useState(false)
   const [appointmentsError, setAppointmentsError] = useState('')
   const [loadingRefresh, setLoadingRefresh] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     const loadAppointmentsForDoctor = async () => {
@@ -317,6 +318,7 @@ function DoctorDashboard() {
                     <button type="button" className="periksa-btn" onClick={() => handlePeriksa(item)}>
                       PERIKSA
                     </button>
+                    {/* Tombol SELESAI dihapus sesuai permintaan */}
                   </span>
                 </div>
               ))}

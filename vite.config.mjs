@@ -10,6 +10,14 @@ export default defineConfig({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
       },
+      '/antrian': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/rujuk_ulang': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 })

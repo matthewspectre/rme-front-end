@@ -153,6 +153,12 @@ function FrontOfficeDashboard() {
   const [activeQueue, setActiveQueue] = useState([])
   const [loadingQueue, setLoadingQueue] = useState(false)
   const [queueError, setQueueError] = useState('')
+  // rujuk_ulang list for selected patient (front office view)
+  const [rujukList, setRujukList] = useState([])
+  const [loadingRujuk, setLoadingRujuk] = useState(false)
+  const [rujukErrorMsg, setRujukErrorMsg] = useState('')
+  const [rujukSubmitting, setRujukSubmitting] = useState({})
+  const [rujukActionError, setRujukActionError] = useState({})
 
   // Doctors list for assigning
   const [doctors, setDoctors] = useState([])
@@ -178,7 +184,9 @@ function FrontOfficeDashboard() {
         const res = await fetch(`${API_BASE_URL}/antrian/`)
         if (!res.ok) throw new Error('Gagal mengambil antrian')
         const data = await res.json()
-        setActiveQueue(Array.isArray(data) ? data : [])
+        // only keep items whose status === 1 (active)
+        const items = Array.isArray(data) ? data.filter(it => Number(it.status) === 1) : []
+        setActiveQueue(items)
       } catch (err) {
         console.error(err)
         setQueueError('Tidak dapat memuat antrian aktif')
@@ -210,6 +218,119 @@ function FrontOfficeDashboard() {
 
     loadDoctors()
   }, [])
+
+  // fetch rujuk_ulang for all patients (refresh when activeQueue changes)
+  useEffect(() => {
+    let cancelled = false
+    const fetchRujukAll = async () => {
+      setLoadingRujuk(true)
+      setRujukErrorMsg('')
+      try {
+        const proxyUrls = [
+          `${API_BASE_URL}/rujuk_ulang/`,
+          `${API_BASE_URL}/rujuk_ulang`
+        ]
+        const backendUrls = [
+          `http://localhost:8080/rujuk_ulang/`,
+          `http://localhost:8080/rujuk_ulang`
+        ]
+        const urls = [...proxyUrls, ...backendUrls]
+        let lastErr = null
+        let res = null
+        for (const u of urls) {
+          try {
+            res = await fetch(u, { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' })
+            if (res && res.ok) break
+            lastErr = `HTTP ${res && res.status} ${res && res.statusText} @ ${u}`
+          } catch (e) { lastErr = e }
+        }
+        if (!res || !res.ok) {
+          setRujukList([])
+          setRujukErrorMsg(String(lastErr || 'Gagal memuat rujukan'))
+          return
+        }
+        const contentType = res.headers && res.headers.get ? (res.headers.get('content-type') || '') : ''
+        if (!contentType.includes('application/json')) {
+          const txt = await res.text().catch(() => '')
+          setRujukList([])
+          setRujukErrorMsg(`Unexpected response: ${String(txt).slice(0,200)}`)
+          return
+        }
+        const data = await res.json()
+        if (!cancelled) setRujukList(Array.isArray(data) ? data : [])
+      } catch (e) {
+        console.error('Failed loading rujuk_ulang', e)
+        if (!cancelled) setRujukErrorMsg(String(e.message || e))
+        if (!cancelled) setRujukList([])
+      } finally {
+        if (!cancelled) setLoadingRujuk(false)
+      }
+    }
+    fetchRujukAll()
+    return () => { cancelled = true }
+  }, [activeQueue])
+
+  const formatToJakarta = (iso) => {
+    if (!iso) return '-'
+    try {
+      const d = new Date(iso)
+      return d.toLocaleString('id-ID', { timeZone: 'Asia/Jakarta', year: 'numeric', month: 'long', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    } catch (e) { return String(iso) }
+  }
+
+  const handleRujukFromHistory = async (r, idx) => {
+    setRujukActionError(prev => ({ ...prev, [idx]: '' }))
+    setRujukSubmitting(prev => ({ ...prev, [idx]: true }))
+    try {
+      const idPasien = r.idPasien ?? r.id_pasien ?? r.pasien_id ?? r.id ?? null
+      const idPoli = r.poli_tujuan ?? r.poliTujuan ?? r.id_poli_tujuan ?? r.nama_poli_tujuan ?? null
+      if (!idPasien || !idPoli) throw new Error('Data pasien atau poli tujuan tidak lengkap')
+
+      const resp = await fetch(`${API_BASE_URL}/antrian`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idPasien: Number(idPasien), idPoli: Number(idPoli) }),
+      })
+      if (!resp.ok) {
+        const t = await resp.text().catch(() => '')
+        throw new Error(t || 'Gagal membuat antrian')
+      }
+
+      // refresh active queue
+      try {
+        const qres = await fetch(`${API_BASE_URL}/antrian/`)
+        if (qres && qres.ok) {
+          const data = await qres.json()
+          const items = Array.isArray(data) ? data.filter(it => Number(it.status) === 1) : []
+          setActiveQueue(items)
+        }
+      } catch (e) { console.error('Failed reload queue after rujuk', e) }
+      // attempt to delete the rujuk_ulang record (if id available)
+      const idRujuk = r.id_rujuk_ulang ?? r.idRujuk ?? r.id ?? null
+      if (idRujuk) {
+        try {
+          const dresp = await fetch(`${API_BASE_URL}/rujuk_ulang/${idRujuk}`, { method: 'DELETE' })
+          if (!dresp.ok) {
+            const t = await dresp.text().catch(() => '')
+            throw new Error(t || 'Gagal menghapus rujuk_ulang')
+          }
+          // remove from local list
+          setRujukList(prev => (Array.isArray(prev) ? prev.filter(item => {
+            const rid = item.id_rujuk_ulang ?? item.idRujuk ?? item.id ?? null
+            return String(rid) !== String(idRujuk)
+          }) : prev))
+        } catch (e) {
+          console.error('Failed deleting rujuk_ulang', e)
+          setRujukActionError(prev => ({ ...prev, [idx]: `Hapus rujuk gagal: ${String(e.message || e)}` }))
+        }
+      }
+    } catch (e) {
+      console.error(e)
+      setRujukActionError(prev => ({ ...prev, [idx]: String(e.message || e) }))
+    } finally {
+      setRujukSubmitting(prev => ({ ...prev, [idx]: false }))
+    }
+  }
 
   // load patients helper
   async function loadPatients() {
@@ -248,6 +369,14 @@ function FrontOfficeDashboard() {
       }
     })
   }, [activeQueue])
+
+  const isPatientInQueue = (patientId) => {
+    if (!patientId) return false
+    return activeQueue.some(q => {
+      const qPid = q.idPasien ?? q.id_pasien ?? q.pasien_id ?? q.id_pasien ?? q.id ?? q.idPasien
+      return String(qPid) === String(patientId)
+    })
+  }
 
   useEffect(() => {
     // debug: log doctors loaded for troubleshooting
@@ -462,9 +591,14 @@ function FrontOfficeDashboard() {
                       <span>Kategori</span>
                       <span>Pekerjaan</span>
                     </div>
-                    {patients.map((patient) => (
-                      <div key={patient.id} className="fo-patient-table-row">
-                        <span>{patient.namaPasien || '-'}</span>
+                    {patients.map((patient) => {
+                      const inQueue = isPatientInQueue(patient.id ?? patient.idPasien ?? patient.id_pasien)
+                      return (
+                        <div key={patient.id} className="fo-patient-table-row">
+                          <span>
+                            {patient.namaPasien || '-'}
+                            {inQueue && <div style={{ color: '#b91c1c', fontSize: 12, marginTop: 6 }}>Pasien sedang dalam antrian</div>}
+                          </span>
                         <span>{patient.tanggalMasuk ? new Date(patient.tanggalMasuk).toLocaleString('id-ID') : '-'}</span>
                         <span>{patient.nik || '-'}</span>
                         <span>{patient.jenisKelamin || '-'}</span>
@@ -475,10 +609,21 @@ function FrontOfficeDashboard() {
                         <span>{patient.kategori || '-'}</span>
                         <span>{patient.pekerjaan || '-'}</span>
                         <span>
-                          <button type="button" onClick={() => handleRujukClick(patient.id)} style={{padding: '2px 10px', borderRadius: 6, background: '#00FFFF', color: '#000', border: 'none', cursor: 'pointer'}}>Rujuk</button>
+                          <button
+                            type="button"
+                            onClick={() => handleRujukClick(patient.id)}
+                            disabled={inQueue}
+                            style={{
+                              padding: '2px 10px', borderRadius: 6, border: 'none', cursor: inQueue ? 'not-allowed' : 'pointer',
+                              background: inQueue ? '#e6e6e6' : '#00FFFF', color: inQueue ? '#9ca3af' : '#000'
+                            }}
+                          >
+                            Rujuk
+                          </button>
                         </span>
-                      </div>
-                    ))}
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               )}
@@ -486,123 +631,187 @@ function FrontOfficeDashboard() {
           </section>
         ) : (
           <section className="fo-content">
-            <section className="fo-card fo-queue">
-              <div className="fo-card-header">
-                <h2>Antrian Aktif</h2>
-                <span className="fo-card-caption">Loket Utama</span>
-              </div>
-              <div className="fo-table">
-                <div className="fo-table-header">
-                  <span>No. Antrian</span>
-                  <span>Nama Pasien</span>
-                  <span>Nama Dokter</span>
-                  <span>Rujukan</span>
-                </div>
-                {loadingQueue ? (
-                  <p className="fo-list-state">Memuat antrian...</p>
-                ) : queueError ? (
-                  <p className="fo-form-message error">{queueError}</p>
-                ) : activeQueue.length === 0 ? (
-                  <p className="fo-list-state">Belum ada antrian aktif.</p>
-                ) : (
-                  activeQueue.map((item) => (
-                    <div key={item.id} className="fo-table-row">
-                      <span>{item.nomorAntrian}</span>
-                      <span>{item.namaPasien || '-'}</span>
-                      <span>
-                        {item.namaDokter && item.namaDokter !== '' ? (
-                          item.namaDokter
-                        ) : (
-                          <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                            <select
-                              value={selectedDoctor[item.id] || ''}
-                              onChange={(e) => setSelectedDoctor(prev => ({ ...prev, [item.id]: e.target.value }))}
-                              disabled={loadingDoctors}
-                            >
-                              <option value="">Pilih Dokter</option>
-                              {
-                                // filter doctors by poli of the rujukan/antrian
-                                (() => {
-                                  const poliId = item.idPoli ?? item.id_poli ?? item.poli_id ?? item.poliId
-                                  const avail = doctors.filter(d => {
-                                    const dp = d.idPoli ?? d.id_poli ?? d.poli_id ?? d.poliId ?? d.poli ?? d.polis ?? d.polies
-                                    if (Array.isArray(dp)) {
-                                      return dp.some(x => String(x?.id ?? x) === String(poliId))
-                                    }
-                                    if (dp && typeof dp === 'object') {
-                                      return String(dp.id ?? dp.id_poli ?? dp.poli_id ?? dp) === String(poliId)
-                                    }
-                                    return String(dp) === String(poliId)
-                                  })
-                                  if (avail.length === 0) {
-                                    return (
-                                      <option value="" disabled>Tidak ada dokter untuk poli ini</option>
-                                    )
-                                  }
-                                  return avail.map((d) => (
-                                    <option key={d.id} value={d.id}>{d.namaDokter}</option>
-                                  ))
-                                })()
-                              }
-                            </select>
-                            <button
-                              type="button"
-                              disabled={!selectedDoctor[item.id] || assigning[item.id]}
-                              onClick={async () => {
-                                const docId = selectedDoctor[item.id]
-                                if (!docId) return
-                                setAssigning(prev => ({ ...prev, [item.id]: true }))
-                                setAssignError(prev => ({ ...prev, [item.id]: '' }))
-                                try {
-                                  const resp = await fetch(`${API_BASE_URL}/antrian/${item.id}`, {
-                                    method: 'PATCH',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ idDokter: Number(docId) }),
-                                  })
-                                  if (!resp.ok) {
-                                    const t = await resp.text()
-                                    throw new Error(t || 'Gagal assign dokter')
-                                  }
-                                  // update local queue
-                                  setActiveQueue(prev => prev.map(q => q.id === item.id ? { ...q, idDokter: Number(docId), namaDokter: (doctors.find(x => String(x.id) === String(docId)) || {}).namaDokter || '' } : q))
-                                } catch (err) {
-                                  console.error(err)
-                                  setAssignError(prev => ({ ...prev, [item.id]: 'Gagal update dokter' }))
-                                } finally {
-                                  setAssigning(prev => ({ ...prev, [item.id]: false }))
-                                }
-                              }}
-                            >
-                              {assigning[item.id] ? 'Menyimpan...' : 'Simpan'}
-                            </button>
-                          </div>
-                        )}
-                        {assignError[item.id] && <div style={{color: '#b91c1c', fontSize: 12}}>{assignError[item.id]}</div>}
-                      </span>
-                      <span>{getPoliName(item.idPoli)}</span>
+              <div style={{ flex: 1 }}>
+                <section className="fo-card fo-queue">
+                  <div className="fo-card-header">
+                    <h2>Antrian Aktif</h2>
+                    <span className="fo-card-caption">Loket Utama</span>
+                  </div>
+                  <div className="fo-table">
+                    <div className="fo-table-header">
+                      <span>No. Antrian</span>
+                      <span>Nama Pasien</span>
+                      <span>Nama Dokter</span>
+                      <span>Rujukan</span>
                     </div>
-                  ))
-                )}
-              </div>
-            </section>
+                    {loadingQueue ? (
+                      <p className="fo-list-state">Memuat antrian...</p>
+                    ) : queueError ? (
+                      <p className="fo-form-message error">{queueError}</p>
+                    ) : activeQueue.length === 0 ? (
+                      <p className="fo-list-state">Belum ada antrian aktif.</p>
+                    ) : (
+                      activeQueue.map((item) => (
+                        <div key={item.id} className="fo-table-row">
+                          <span>{item.nomorAntrian}</span>
+                          <span>{item.namaPasien || '-'}</span>
+                          <span>
+                            {item.namaDokter && item.namaDokter !== '' ? (
+                              item.namaDokter
+                            ) : (
+                              <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
+                                <select
+                                  value={selectedDoctor[item.id] || ''}
+                                  onChange={(e) => setSelectedDoctor(prev => ({ ...prev, [item.id]: e.target.value }))}
+                                  disabled={loadingDoctors}
+                                >
+                                  <option value="">Pilih Dokter</option>
+                                  {
+                                    // filter doctors by poli of the rujukan/antrian
+                                    (() => {
+                                      const poliId = item.idPoli ?? item.id_poli ?? item.poli_id ?? item.poliId
+                                      const avail = doctors.filter(d => {
+                                        const dp = d.idPoli ?? d.id_poli ?? d.poli_id ?? d.poliId ?? d.poli ?? d.polis ?? d.polies
+                                        if (Array.isArray(dp)) {
+                                          return dp.some(x => String(x?.id ?? x) === String(poliId))
+                                        }
+                                        if (dp && typeof dp === 'object') {
+                                          return String(dp.id ?? dp.id_poli ?? dp.poli_id ?? dp) === String(poliId)
+                                        }
+                                        return String(dp) === String(poliId)
+                                      })
+                                      if (avail.length === 0) {
+                                        return (
+                                          <option value="" disabled>Tidak ada dokter untuk poli ini</option>
+                                        )
+                                      }
+                                      return avail.map((d) => (
+                                        <option key={d.id} value={d.id}>{d.namaDokter}</option>
+                                      ))
+                                    })()
+                                  }
+                                </select>
+                                <button
+                                  type="button"
+                                  disabled={!selectedDoctor[item.id] || assigning[item.id]}
+                                  onClick={async () => {
+                                    const docId = selectedDoctor[item.id]
+                                    if (!docId) return
+                                    setAssigning(prev => ({ ...prev, [item.id]: true }))
+                                    setAssignError(prev => ({ ...prev, [item.id]: '' }))
+                                    try {
+                                      const resp = await fetch(`${API_BASE_URL}/antrian/${item.id}`, {
+                                        method: 'PATCH',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ idDokter: Number(docId) }),
+                                      })
+                                      if (!resp.ok) {
+                                        const t = await resp.text()
+                                        throw new Error(t || 'Gagal assign dokter')
+                                      }
+                                      // update local queue
+                                      setActiveQueue(prev => prev.map(q => q.id === item.id ? { ...q, idDokter: Number(docId), namaDokter: (doctors.find(x => String(x.id) === String(docId)) || {}).namaDokter || '' } : q))
+                                    } catch (err) {
+                                      console.error(err)
+                                      setAssignError(prev => ({ ...prev, [item.id]: 'Gagal update dokter' }))
+                                    } finally {
+                                      setAssigning(prev => ({ ...prev, [item.id]: false }))
+                                    }
+                                  }}
+                                >
+                                  {assigning[item.id] ? 'Menyimpan...' : 'Simpan'}
+                                </button>
+                              </div>
+                            )}
+                            {assignError[item.id] && <div style={{color: '#b91c1c', fontSize: 12}}>{assignError[item.id]}</div>}
+                          </span>
+                          <span>{getPoliName(item.idPoli)}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
 
-            <section className="fo-card fo-summary">
-              <h2>Ringkasan</h2>
-              <div className="fo-summary-grid">
-                <div className="fo-summary-item">
-                  <span className="fo-summary-label">Total Antrian</span>
-                  <span className="fo-summary-value">{activeQueue.length}</span>
-                </div>
-                <div className="fo-summary-item">
-                  <span className="fo-summary-label">Dipanggil</span>
-                  <span className="fo-summary-value">{activeQueue.filter(i => i.idDokter && i.idDokter > 0).length}</span>
-                </div>
-                <div className="fo-summary-item">
-                  <span className="fo-summary-label">Menunggu</span>
-                  <span className="fo-summary-value">{Math.max(0, activeQueue.length - activeQueue.filter(i => i.idDokter && i.idDokter > 0).length)}</span>
-                </div>
+                <section className="fo-card fo-rujuk" style={{ marginTop: 12 }}>
+                  <div className="fo-card-header" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <h2 style={{ margin: 0 }}>Rujukan Ulang</h2>
+                    <span className="fo-card-caption">Riwayat rujukan pasien</span>
+                    
+                  </div>
+                  <div style={{ padding: 12 }}>
+                    {loadingRujuk ? (
+                      <div className="fo-list-state">Memuat rujukan...</div>
+                    ) : rujukErrorMsg ? (
+                      <div style={{ color: '#b91c1c' }}>{rujukErrorMsg}</div>
+                    ) : (!rujukList || rujukList.length === 0) ? (
+                      <div className="fo-list-state">Belum ada data rujukan untuk pasien terpilih.</div>
+                    ) : (
+                      <div style={{ overflowX: 'auto' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+                          <thead>
+                            <tr style={{ textAlign: 'left', borderBottom: '1px solid #e6eef8' }}>
+                              <th style={{ padding: '12px 8px' }}>Tanggal Rujuk</th>
+                              <th style={{ padding: '12px 8px' }}>Nama Pasien</th>
+                              <th style={{ padding: '12px 8px' }}>Poli Asal</th>
+                              <th style={{ padding: '12px 8px' }}>Poli Tujuan</th>
+                              <th style={{ padding: '12px 8px' }}>Diagnosis Sementara</th>
+                              <th style={{ padding: '12px 8px' }}>Catatan</th>
+                              <th style={{ padding: '12px 8px' }}>Nama Dokter</th>
+                              <th style={{ padding: '12px 8px' }}>Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rujukList.map((r, i) => (
+                              <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '10px 8px', verticalAlign: 'top', color: '#475569' }}>{formatToJakarta(r.date_make ?? r.dateMake)}</td>
+                                <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{r.nama_pasien ?? r.namaPasien ?? r.nama_pasien ?? '-'}</td>
+                                <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{r.nama_poli_asal ?? r.namaPoliAsal ?? '-'}</td>
+                                <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{r.nama_poli_tujuan ?? r.namaPoliTujuan ?? '-'}</td>
+                                <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{r.diagnosis_sementara ?? r.diagnosisSementara ?? '-'}</td>
+                                <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{r.catatan ?? '-'}</td>
+                                <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>{r.nama_dokter ?? r.namaDokter ?? '-'}</td>
+                                <td style={{ padding: '10px 8px', verticalAlign: 'top' }}>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRujukFromHistory(r, i)}
+                                    disabled={!!rujukSubmitting[i]}
+                                    style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}
+                                  >
+                                    {rujukSubmitting[i] ? 'Mengirim...' : 'Rujuk'}
+                                  </button>
+                                  {rujukActionError[i] && <div style={{ color: '#b91c1c', fontSize: 12, marginTop: 6 }}>{rujukActionError[i]}</div>}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </section>
               </div>
-            </section>
+
+              <div style={{ width: 560 }}>
+                <section className="fo-card fo-summary">
+                  <h2>Ringkasan</h2>
+                  <div className="fo-summary-grid">
+                    <div className="fo-summary-item">
+                      <span className="fo-summary-label">Total Antrian</span>
+                      <span className="fo-summary-value">{activeQueue.length}</span>
+                    </div>
+                    <div className="fo-summary-item">
+                      <span className="fo-summary-label">Dipanggil</span>
+                      <span className="fo-summary-value">{activeQueue.filter(i => i.idDokter && i.idDokter > 0).length}</span>
+                    </div>
+                    <div className="fo-summary-item">
+                      <span className="fo-summary-label">Menunggu</span>
+                      <span className="fo-summary-value">{Math.max(0, activeQueue.length - activeQueue.filter(i => i.idDokter && i.idDokter > 0).length)}</span>
+                    </div>
+                  </div>
+                </section>
+              </div>
+
+            
           </section>
         )}
       </main>
@@ -654,7 +863,8 @@ function FrontOfficeDashboard() {
                         const qres = await fetch(`${API_BASE_URL}/antrian/`)
                         if (qres.ok) {
                           const qdata = await qres.json()
-                          setActiveQueue(Array.isArray(qdata) ? qdata : [])
+                          const items = Array.isArray(qdata) ? qdata.filter(it => Number(it.status) === 1) : []
+                          setActiveQueue(items)
                         }
                       } catch (e) { /* ignore */ }
                     } catch (err) {

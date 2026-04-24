@@ -89,6 +89,8 @@ function PoliUmum() {
   const [rujukanHistory, setRujukanHistory] = useState([])
   const [loadingRujukanHistory, setLoadingRujukanHistory] = useState(false)
   const [rujukanHistoryError, setRujukanHistoryError] = useState('')
+  const [isMarkingSelesai, setIsMarkingSelesai] = useState(false)
+  const [markingId, setMarkingId] = useState(null)
   // poli list for dropdown (loaded from /poli)
   const [poliList, setPoliList] = useState([])
   const [loadingPoliList, setLoadingPoliList] = useState(false)
@@ -995,6 +997,52 @@ function PoliUmum() {
     }
   }
 
+  const handleMarkSelesai = async () => {
+    try {
+      const pid = hoveredPatientId ?? (selectedPatient?.id ?? selectedPatient?.idPasien ?? selectedPatient?.id_pasien ?? (antrian[0]?.idPasien ?? antrian[0]?.id))
+      if (!pid) {
+        alert('Pilih pasien terlebih dahulu untuk menandai selesai')
+        return
+      }
+      // optimistic: remove from antrian immediately
+      setMarkingId(pid)
+      setIsMarkingSelesai(true)
+      setAntrian(prev => prev.filter(it => String(it.idPasien ?? it.id_pasien ?? it.pasien_id ?? it.id) !== String(pid)))
+
+      // Try delete via proxy first, then backend fallback (support trailing/non-trailing)
+      const proxyUrls = [
+        `${API_BASE_URL}/antrian/patient/${encodeURIComponent(pid)}/`,
+        `${API_BASE_URL}/antrian/patient/${encodeURIComponent(pid)}`
+      ]
+      const backendUrls = [
+        `http://localhost:8080/antrian/patient/${encodeURIComponent(pid)}/`,
+        `http://localhost:8080/antrian/patient/${encodeURIComponent(pid)}`
+      ]
+      const urls = [...proxyUrls, ...backendUrls]
+      let lastErr = null
+      let success = false
+      for (const u of urls) {
+        try {
+          const res = await fetch(u, { method: 'DELETE', credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' })
+          if (res && res.ok) { success = true; break }
+          // do not treat 404 from dev server proxy as success; keep trying fallbacks
+          lastErr = `HTTP ${res && res.status} ${res && res.statusText} @ ${u}`
+        } catch (e) {
+          lastErr = e
+        }
+      }
+      if (!success) {
+        console.warn('Gagal menghapus antrian pasien di server', lastErr)
+        alert('Gagal menghapus antrian di server: ' + String(lastErr))
+      }
+    } catch (e) {
+      console.error('handleMarkSelesai error', e)
+    } finally {
+      setIsMarkingSelesai(false)
+      setMarkingId(null)
+    }
+  }
+
   const handlePrintTatalaksana = () => {
     try {
       const patientName = selectedPatient?.namaPasien || selectedPatient?.full_name || (antrian[0]?.namaPasien ?? '')
@@ -1510,6 +1558,17 @@ function PoliUmum() {
               }}
             >
               Rujukan Ulang
+            </button>
+            <button
+              type="button"
+              onClick={handleMarkSelesai}
+              disabled={isMarkingSelesai}
+              style={{
+                padding: '8px 14px', borderRadius: 999, border: '1px solid #e6eef8',
+                background: isMarkingSelesai ? '#94a3b8' : '#10b981', color: '#fff', cursor: 'pointer'
+              }}
+            >
+              {isMarkingSelesai ? 'Memproses...' : 'Selesai'}
             </button>
           </div>
 
