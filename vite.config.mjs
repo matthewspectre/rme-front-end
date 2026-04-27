@@ -26,6 +26,18 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/diagnosis': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/catatan_diagnosis': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/icd10': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
     },
   },
 })

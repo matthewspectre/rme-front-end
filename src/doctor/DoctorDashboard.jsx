@@ -170,7 +170,7 @@ function DoctorDashboard() {
       let path = '/pemeriksaan'
       if (Number(poliVal) === 1) path = '/pemeriksaan/poli-umum'
       else if (Number(poliVal) === 2) path = '/pemeriksaan/poli-penyakit-dalam'
-      else if (Number(poliVal) === 3) path = '/pemeriksaan/poli-anak'
+      else if (Number(poliVal) === 3) path = '/pemeriksaan/poli-bedah'
 
       navigate(path, { state: { idPasien: pid, idDokter: dokterId, poli: poliVal } })
     } catch (e) {
@@ -204,7 +204,7 @@ function DoctorDashboard() {
             <span className="sidebar-icon">🏠</span>
             <span>Dashboard Utama</span>
           </button>
-          {/* Tampilkan tombol masuk ke menu poli sesuai poli dokter (1=Umum,2=Penyakit Dalam,3=Anak) */}
+          {/* Tampilkan tombol masuk ke menu poli sesuai poli dokter (1=Umum,2=Penyakit Dalam,3=Bedah) */}
           {myDokter && (() => {
             const poliVal = myDokter?.poli ?? myDokter?.idPoli ?? myDokter?.poli_id ?? myDokter?.id_poli ?? null
             if (Number(poliVal) === 1) {
@@ -225,9 +225,9 @@ function DoctorDashboard() {
             }
             if (Number(poliVal) === 3) {
               return (
-                <button className="sidebar-item" onClick={() => { window.location.href = 'http://localhost:5173/pemeriksaan/poli-anak' }}>
-                  <span className="sidebar-icon">👶</span>
-                  <span>Poli Anak</span>
+                <button className="sidebar-item" onClick={() => { window.location.href = 'http://localhost:5173/pemeriksaan/poli-bedah' }}>
+                  <span className="sidebar-icon">🧑‍⚕️</span>
+                  <span>Poli Bedah</span>
                 </button>
               )
             }

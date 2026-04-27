@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { API_BASE_URL } from '../api'
 
-function PoliAnak() {
+function PoliBedah() {
   const navigate = useNavigate()
   const userRaw = localStorage.getItem('user')
   let user = { full_name: 'Dokter' }
@@ -144,8 +144,8 @@ function PoliAnak() {
             <span>Dashboard Utama</span>
           </button>
           <button className="sidebar-item active">
-            <span className="sidebar-icon">🧒</span>
-            <span>Poli Anak</span>
+            <span className="sidebar-icon">🧑‍⚕️</span>
+            <span>Poli Bedah</span>
           </button>
         </nav>
       </aside>
@@ -153,7 +153,7 @@ function PoliAnak() {
       <main className="doctor-main">
         <header className="doctor-header">
           <div>
-            <h1 className="doctor-title">Selamat Datang di Poli Anak</h1>
+            <h1 className="doctor-title">Selamat Datang di Poli Bedah</h1>
             <p className="doctor-date">Halaman sementara — konten pemeriksaan akan dikembangkan</p>
           </div>
           <div className="doctor-profile-wrapper">
@@ -256,4 +256,4 @@ function PoliAnak() {
   )
 }
 
-export default PoliAnak
+export default PoliBedah

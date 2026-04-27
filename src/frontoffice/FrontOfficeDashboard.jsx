@@ -172,7 +172,7 @@ function FrontOfficeDashboard() {
   const poliNames = {
     1: 'Poli Umum',
     2: 'Poli Penyakit Dalam',
-    3: 'Poli Anak',
+    3: 'Poli Bedah',
   }
   const getPoliName = (id) => poliNames[id] || '-'
 

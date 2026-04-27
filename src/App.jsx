@@ -3,7 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import DoctorDashboard from './doctor/DoctorDashboard'
 import PoliUmum from './doctor/PoliUmum'
 import PoliPenyakitDalam from './doctor/PoliPenyakitDalam'
-import PoliAnak from './doctor/PoliAnak'
+import PoliBedah from './doctor/PoliBedah'
 import FrontOfficeDashboard from './frontoffice/FrontOfficeDashboard'
 import ErrorBoundary from './ErrorBoundary'
 import { API_BASE_URL } from './api'
@@ -175,7 +175,7 @@ function App() {
         <Route path="/dokter" element={<DoctorDashboard />} />
         <Route path="/pemeriksaan/poli-umum" element={<PoliUmum />} />
         <Route path="/pemeriksaan/poli-penyakit-dalam" element={<PoliPenyakitDalam />} />
-        <Route path="/pemeriksaan/poli-anak" element={<PoliAnak />} />
+        <Route path="/pemeriksaan/poli-bedah" element={<PoliBedah />} />
 
         <Route path="/front-office" element={<FrontOfficeDashboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
