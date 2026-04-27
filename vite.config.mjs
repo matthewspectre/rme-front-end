@@ -30,6 +30,18 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/lokalis_bedah': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/pemeriksaan_fungsi_organ': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
+      '/lokalis-bedah': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/catatan_diagnosis': {
         target: 'http://localhost:8080',
         changeOrigin: true,
