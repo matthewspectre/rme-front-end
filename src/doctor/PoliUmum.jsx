@@ -2164,9 +2164,7 @@ function PoliUmum() {
               </div>
             )}
 
-        <section style={{padding:24}}>
-          <div style={{color:'#374151'}}>Ini adalah tampilan awal untuk <strong>Poli Umum</strong>. Sidebar dan header sudah tersedia.</div>
-        </section>
+        
       </main>
     </div>
   )
