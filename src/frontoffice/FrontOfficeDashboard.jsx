@@ -168,6 +168,9 @@ function FrontOfficeDashboard() {
   const [assigning, setAssigning] = useState({})
   const [assignError, setAssignError] = useState({})
   const [doctorsByPoli, setDoctorsByPoli] = useState({})
+  // Doctor picker modal state
+  const [doctorPickerVisible, setDoctorPickerVisible] = useState(false)
+  const [doctorPickerFor, setDoctorPickerFor] = useState(null)
 
   const poliNames = {
     1: 'Poli Umum',
@@ -404,8 +407,6 @@ function FrontOfficeDashboard() {
           >
             Registrasi Pasien
           </button>
-          <button className="fo-menu-item">Pendaftaran Janji Temu</button>
-          <button className="fo-menu-item">Pembayaran &amp; Kasir</button>
         </nav>
       </aside>
 
@@ -660,70 +661,18 @@ function FrontOfficeDashboard() {
                               item.namaDokter
                             ) : (
                               <div style={{display: 'flex', gap: 8, alignItems: 'center'}}>
-                                <select
-                                  value={selectedDoctor[item.id] || ''}
-                                  onChange={(e) => setSelectedDoctor(prev => ({ ...prev, [item.id]: e.target.value }))}
-                                  disabled={loadingDoctors}
-                                >
-                                  <option value="">Pilih Dokter</option>
-                                  {
-                                    // filter doctors by poli of the rujukan/antrian
-                                    (() => {
-                                      const poliId = item.idPoli ?? item.id_poli ?? item.poli_id ?? item.poliId
-                                      const avail = doctors.filter(d => {
-                                        const dp = d.idPoli ?? d.id_poli ?? d.poli_id ?? d.poliId ?? d.poli ?? d.polis ?? d.polies
-                                        if (Array.isArray(dp)) {
-                                          return dp.some(x => String(x?.id ?? x) === String(poliId))
-                                        }
-                                        if (dp && typeof dp === 'object') {
-                                          return String(dp.id ?? dp.id_poli ?? dp.poli_id ?? dp) === String(poliId)
-                                        }
-                                        return String(dp) === String(poliId)
-                                      })
-                                      if (avail.length === 0) {
-                                        return (
-                                          <option value="" disabled>Tidak ada dokter untuk poli ini</option>
-                                        )
-                                      }
-                                      return avail.map((d) => (
-                                        <option key={d.id} value={d.id}>{d.namaDokter}</option>
-                                      ))
-                                    })()
-                                  }
-                                </select>
                                 <button
                                   type="button"
-                                  disabled={!selectedDoctor[item.id] || assigning[item.id]}
-                                  onClick={async () => {
-                                    const docId = selectedDoctor[item.id]
-                                    if (!docId) return
-                                    setAssigning(prev => ({ ...prev, [item.id]: true }))
-                                    setAssignError(prev => ({ ...prev, [item.id]: '' }))
-                                    try {
-                                      const resp = await fetch(`${API_BASE_URL}/antrian/${item.id}`, {
-                                        method: 'PATCH',
-                                        headers: { 'Content-Type': 'application/json' },
-                                        body: JSON.stringify({ idDokter: Number(docId) }),
-                                      })
-                                      if (!resp.ok) {
-                                        const t = await resp.text()
-                                        throw new Error(t || 'Gagal assign dokter')
-                                      }
-                                      // update local queue
-                                      setActiveQueue(prev => prev.map(q => q.id === item.id ? { ...q, idDokter: Number(docId), namaDokter: (doctors.find(x => String(x.id) === String(docId)) || {}).namaDokter || '' } : q))
-                                    } catch (err) {
-                                      console.error(err)
-                                      setAssignError(prev => ({ ...prev, [item.id]: 'Gagal update dokter' }))
-                                    } finally {
-                                      setAssigning(prev => ({ ...prev, [item.id]: false }))
-                                    }
-                                  }}
+                                  onClick={() => { setDoctorPickerFor(item); setDoctorPickerVisible(true); setAssignError(prev => ({ ...prev, [item.id]: '' })) }}
+                                  disabled={loadingDoctors}
+                                  style={{ padding: '6px 10px', borderRadius: 6, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer' }}
                                 >
-                                  {assigning[item.id] ? 'Menyimpan...' : 'Simpan'}
+                                  Pilih Dokter
                                 </button>
+                                {assignError[item.id] && <div style={{color: '#b91c1c', fontSize: 12}}>{assignError[item.id]}</div>}
                               </div>
                             )}
-                            {assignError[item.id] && <div style={{color: '#b91c1c', fontSize: 12}}>{assignError[item.id]}</div>}
+                            
                           </span>
                           <span>{getPoliName(item.idPoli)}</span>
                         </div>
@@ -875,6 +824,74 @@ function FrontOfficeDashboard() {
                 </div>
               </>
             )}
+          </div>
+        </div>
+      )}
+      {doctorPickerVisible && doctorPickerFor && (
+        <div style={{position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50}}>
+          <div style={{width: 540, background: '#fff', borderRadius: 8, padding: 18, boxShadow: '0 8px 30px rgba(0,0,0,0.2)'}}>
+            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12}}>
+              <h3 style={{margin: 0}}>Pilih Dokter untuk {doctorPickerFor?.namaPasien || '-'}</h3>
+              <button type="button" onClick={() => { setDoctorPickerVisible(false); setDoctorPickerFor(null); }} style={{background: 'transparent', border: 'none', fontSize: 18, cursor: 'pointer'}}>×</button>
+            </div>
+            <div style={{maxHeight: '50vh', overflowY: 'auto'}}>
+              {
+                (() => {
+                  const poliId = doctorPickerFor.idPoli ?? doctorPickerFor.id_poli ?? doctorPickerFor.poli_id ?? doctorPickerFor.poliId
+                  const avail = doctors.filter(d => {
+                    const dp = d.idPoli ?? d.id_poli ?? d.poli_id ?? d.poliId ?? d.poli ?? d.polis ?? d.polies
+                    if (Array.isArray(dp)) {
+                      return dp.some(x => String(x?.id ?? x) === String(poliId))
+                    }
+                    if (dp && typeof dp === 'object') {
+                      return String(dp.id ?? dp.id_poli ?? dp.poli_id ?? dp) === String(poliId)
+                    }
+                    return String(dp) === String(poliId)
+                  })
+                  if (avail.length === 0) return <div>Tidak ada dokter untuk poli ini.</div>
+                  return avail.map((d) => (
+                    <div key={d.id} style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: '1px solid #f1f5f9'}}>
+                      <div>{d.namaDokter}</div>
+                      <div>
+                        <button
+                          type="button"
+                          disabled={assigning[doctorPickerFor.id]}
+                          onClick={async () => {
+                            const itemId = doctorPickerFor.id
+                            const docId = d.id
+                            if (!itemId || !docId) return
+                            setAssigning(prev => ({ ...prev, [itemId]: true }))
+                            setAssignError(prev => ({ ...prev, [itemId]: '' }))
+                            try {
+                              const resp = await fetch(`${API_BASE_URL}/antrian/${itemId}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ idDokter: Number(docId) }),
+                              })
+                              if (!resp.ok) {
+                                const t = await resp.text().catch(() => '')
+                                throw new Error(t || 'Gagal assign dokter')
+                              }
+                              setActiveQueue(prev => prev.map(q => q.id === itemId ? { ...q, idDokter: Number(docId), namaDokter: (doctors.find(x => String(x.id) === String(docId)) || {}).namaDokter || '' } : q))
+                              setDoctorPickerVisible(false)
+                              setDoctorPickerFor(null)
+                            } catch (err) {
+                              console.error(err)
+                              setAssignError(prev => ({ ...prev, [itemId]: 'Gagal update dokter' }))
+                            } finally {
+                              setAssigning(prev => ({ ...prev, [itemId]: false }))
+                            }
+                          }}
+                          style={{ padding: '6px 10px', borderRadius: 6, background: '#2563eb', color: '#fff', border: 'none', cursor: 'pointer' }}
+                        >
+                          {assigning[doctorPickerFor.id] ? 'Menyimpan...' : 'Pilih'}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                })()
+              }
+            </div>
           </div>
         </div>
       )}

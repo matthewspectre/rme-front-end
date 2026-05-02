@@ -102,6 +102,25 @@ function PoliBedah() {
   const [fungsiHistory, setFungsiHistory] = useState([])
   const [fungsiHistoryError, setFungsiHistoryError] = useState('')
 
+  // Penunjang Bedah form state
+  const [penunjangForm, setPenunjangForm] = useState({
+    butuhUSG: false,
+    butuhRontgen: false,
+    butuhCTScan: false,
+    butuhBiopsi: false,
+    statusOperasi: '',
+    jenisTindakan: '',
+    prioritas: '',
+    catatanBedah: '',
+    jadwalBedah: '',
+  })
+  const [isSubmittingPenunjang, setIsSubmittingPenunjang] = useState(false)
+  const [penunjangMessage, setPenunjangMessage] = useState('')
+  const [penunjangError, setPenunjangError] = useState('')
+  const [penunjangHistory, setPenunjangHistory] = useState([])
+  const [loadingPenunjangHistory, setLoadingPenunjangHistory] = useState(false)
+  const [penunjangHistoryError, setPenunjangHistoryError] = useState('')
+
   const fetchFungsiHistory = async (pid) => {
     setFungsiHistoryError('')
     if (!pid) {
@@ -203,7 +222,7 @@ function PoliBedah() {
 
     return (
       <div style={{ marginTop: 16, overflowX: 'auto' }}>
-        <table className="anamnesis-table" style={{ tableLayout: 'fixed' }}>
+        <table className="anamnesis-table" style={{ tableLayout: 'fixed', width: '100%' }}>
           <thead>
             <tr style={{ textAlign: 'left', borderBottom: '1px solid #e6eef8' }}>
               <th style={{ padding: '8px', width: '8%' }}>Aksi</th>
@@ -306,6 +325,113 @@ function PoliBedah() {
     )
   }
 
+  const fetchPenunjangHistory = async (maybePid) => {
+    setPenunjangHistoryError('')
+    setLoadingPenunjangHistory(true)
+    try {
+      const idPasien = maybePid || (selectedPatient?.id ?? selectedPatient?.idPasien ?? antrian[0]?.idPasien ?? antrian[0]?.id)
+      if (!idPasien) {
+        setPenunjangHistory([])
+        return
+      }
+
+      const candidates = [
+        `${API_BASE_URL}/pemeriksaan_penunjang_bedah?idPasien=${encodeURIComponent(idPasien)}`,
+        `/pemeriksaan_penunjang_bedah?idPasien=${encodeURIComponent(idPasien)}`,
+        `http://localhost:8080/pemeriksaan_penunjang_bedah?idPasien=${encodeURIComponent(idPasien)}`,
+      ]
+
+      let res = null
+      let lastErr = null
+      for (const u of candidates) {
+        try {
+          const r = await fetch(u, { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' })
+          if (r && r.ok) { res = r; break }
+          if (r && r.status === 404) { lastErr = `404 Not Found @ ${u}`; continue }
+          const txt = await r.text().catch(() => '')
+          lastErr = `HTTP ${r.status} ${r.statusText} - ${txt} @ ${u}`
+          break
+        } catch (e) {
+          lastErr = String(e.message || e)
+        }
+      }
+      if (!res) {
+        throw new Error(lastErr || 'Gagal menghubungi server penunjang. Pastikan backend berjalan dan dev server dijalankan.')
+      }
+      const data = await res.json()
+      setPenunjangHistory(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error(e)
+      setPenunjangHistory([])
+      setPenunjangHistoryError(String(e.message || e))
+    } finally {
+      setLoadingPenunjangHistory(false)
+    }
+  }
+
+  useEffect(() => {
+    try {
+      const pid = selectedPatient?.id ?? selectedPatient?.idPasien ?? antrian[0]?.idPasien ?? antrian[0]?.id
+      if (!pid) { setPenunjangHistory([]); return }
+      fetchPenunjangHistory(pid)
+    } catch (e) {
+      // ignore
+    }
+  }, [selectedPatient, antrian])
+
+  const renderPenunjangHistory = () => {
+    if (loadingPenunjangHistory) return <div style={{ color: '#64748b' }}>Memuat riwayat...</div>
+    if (penunjangHistoryError) return <div style={{ color: '#b91c1c' }}>{penunjangHistoryError}</div>
+    if (!penunjangHistory || penunjangHistory.length === 0) return <div style={{ color: '#64748b' }}>Belum ada riwayat penunjang bedah untuk pasien ini.</div>
+
+    const fmtBool = (v) => (v === null || typeof v === 'undefined') ? '-' : (v ? 'Ya' : 'Tidak')
+    const fmtText = (v) => (v === null || typeof v === 'undefined' || v === '') ? '-' : String(v)
+    const fmtDate = (d) => {
+      if (!d) return '-'
+      try { const dt = new Date(d); return isNaN(dt.getTime()) ? '-' : dt.toLocaleString('id-ID') } catch (e) { return '-' }
+    }
+
+    return (
+      <div style={{ marginTop: 16, overflowX: 'auto' }}>
+        <table className="anamnesis-table" style={{ tableLayout: 'fixed' }}>
+          <thead>
+            <tr style={{ textAlign: 'left', borderBottom: '1px solid #e6eef8' }}>
+              <th style={{ padding: '8px', width: '8%' }}>Aksi</th>
+              <th style={{ padding: '8px', width: '12%' }}>Jadwal</th>
+              <th style={{ padding: '8px', width: '6%' }}>USG</th>
+              <th style={{ padding: '8px', width: '6%' }}>Rontgen</th>
+              <th style={{ padding: '8px', width: '6%' }}>CTScan</th>
+              <th style={{ padding: '8px', width: '6%' }}>Biopsi</th>
+              <th style={{ padding: '8px', width: '12%' }}>Status Operasi</th>
+              <th style={{ padding: '8px', width: '12%' }}>Jenis Tindakan</th>
+              <th style={{ padding: '8px', width: '8%' }}>Prioritas</th>
+              <th style={{ padding: '8px', width: '22%' }}>Catatan Bedah</th>
+            </tr>
+          </thead>
+          <tbody>
+            {penunjangHistory.slice().sort((a, b) => new Date(b.jadwalBedah || b.tanggal || 0) - new Date(a.jadwalBedah || a.tanggal || 0)).map((entry, idx) => (
+              <tr key={entry.id ?? `penunjang-${idx}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                <td className="actions-cell" style={{ padding: '8px', verticalAlign: 'top', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <button type="button" className="btn-ubah" onClick={() => openEditPenunjang(entry.id ?? entry._id ?? null)}>UBAH</button>
+                  <button type="button" className="btn-hapus" onClick={() => showConfirm({ title: 'Konfirmasi', message: 'Yakin ingin menyembunyikan entri ini?', onConfirm: () => patchHidePenunjang(entry.id ?? entry._id ?? null) })}>HAPUS</button>
+                </td>
+                <td style={{ padding: '8px', verticalAlign: 'top' }}>{fmtDate(entry.jadwalBedah)}</td>
+                <td style={{ padding: '8px', verticalAlign: 'top' }}>{fmtBool(entry.butuhUSG)}</td>
+                <td style={{ padding: '8px', verticalAlign: 'top' }}>{fmtBool(entry.butuhRontgen)}</td>
+                <td style={{ padding: '8px', verticalAlign: 'top' }}>{fmtBool(entry.butuhCTScan)}</td>
+                <td style={{ padding: '8px', verticalAlign: 'top' }}>{fmtBool(entry.butuhBiopsi)}</td>
+                <td style={{ padding: '8px', verticalAlign: 'top' }}>{fmtText(entry.statusOperasi)}</td>
+                <td style={{ padding: '8px', verticalAlign: 'top' }}>{fmtText(entry.jenisTindakan)}</td>
+                <td style={{ padding: '8px', verticalAlign: 'top' }}>{fmtText(entry.prioritas)}</td>
+                <td style={{ padding: '8px', verticalAlign: 'top', wordBreak: 'break-word' }}>{fmtText(entry.catatanBedah)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
   // confirmation modal render (match PoliPenyakitDalam style)
   
 
@@ -332,6 +458,53 @@ function PoliBedah() {
   const handleConfirmNo = () => {
     setConfirmVisible(false)
     confirmCallback.current = null
+  }
+
+  // hover + selesai states
+  const [hoveredPatientId, setHoveredPatientId] = useState(null)
+  const hoverTimer = React.useRef(null)
+  const [isMarkingSelesai, setIsMarkingSelesai] = useState(false)
+  const [markingId, setMarkingId] = useState(null)
+
+  const handleMarkSelesai = async () => {
+    try {
+      const pid = hoveredPatientId ?? (selectedPatient?.id ?? selectedPatient?.idPasien ?? selectedPatient?.id_pasien ?? (antrian[0]?.idPasien ?? antrian[0]?.id))
+      if (!pid) {
+        alert('Pilih pasien terlebih dahulu untuk menandai selesai')
+        return
+      }
+      setMarkingId(pid)
+      setIsMarkingSelesai(true)
+      setAntrian(prev => prev.filter(it => String(it.idPasien ?? it.id_pasien ?? it.pasien_id ?? it.id) !== String(pid)))
+
+      const proxyUrls = [
+        `${API_BASE_URL}/antrian/patient/${encodeURIComponent(pid)}/`,
+        `${API_BASE_URL}/antrian/patient/${encodeURIComponent(pid)}`
+      ]
+      const backendUrls = [
+        `http://localhost:8080/antrian/patient/${encodeURIComponent(pid)}/`,
+        `http://localhost:8080/antrian/patient/${encodeURIComponent(pid)}`
+      ]
+      const urls = [...proxyUrls, ...backendUrls]
+      let lastErr = null
+      let success = false
+      for (const u of urls) {
+        try {
+          const res = await fetch(u, { method: 'DELETE', credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' })
+          if (res && res.ok) { success = true; break }
+          lastErr = `HTTP ${res && res.status} ${res && res.statusText} @ ${u}`
+        } catch (e) { lastErr = e }
+      }
+      if (!success) {
+        console.warn('Gagal menghapus antrian pasien di server', lastErr)
+        alert('Gagal menghapus antrian di server: ' + String(lastErr))
+      }
+    } catch (e) {
+      console.error('handleMarkSelesai error', e)
+    } finally {
+      setIsMarkingSelesai(false)
+      setMarkingId(null)
+    }
   }
 
   const patchHideLokalis = async (entryId) => {
@@ -529,6 +702,132 @@ function PoliBedah() {
     }
   }
 
+  // --- Penunjang edit modal state and handlers ---
+  const [editPenunjangVisible, setEditPenunjangVisible] = useState(false)
+  const [editPenunjangLoading, setEditPenunjangLoading] = useState(false)
+  const [isSubmittingEditPenunjang, setIsSubmittingEditPenunjang] = useState(false)
+  const [editPenunjangForm, setEditPenunjangForm] = useState({
+    id: null,
+    id_pasien: null,
+    id_dokter: null,
+    tanggal: '',
+    butuhUSG: false,
+    butuhRontgen: false,
+    butuhCTScan: false,
+    butuhBiopsi: false,
+    statusOperasi: '',
+    jenisTindakan: '',
+    prioritas: '',
+    catatanBedah: '',
+    jadwalBedah: '',
+  })
+  const [editPenunjangError, setEditPenunjangError] = useState('')
+
+  const openEditPenunjang = async (entryId) => {
+    if (!entryId) { setEditPenunjangError('ID entri tidak tersedia'); return }
+    setEditPenunjangError('')
+    setEditPenunjangLoading(true)
+    try {
+      const u = `${API_BASE_URL}/pemeriksaan_penunjang_bedah/${encodeURIComponent(entryId)}`
+      const r = await fetch(u, { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' })
+      if (!r.ok) {
+        const txt = await r.text().catch(() => '')
+        throw new Error(`HTTP ${r.status} ${r.statusText} - ${txt}`)
+      }
+      const data = await r.json()
+      const d = Array.isArray(data) ? data[0] : data
+      setEditPenunjangForm({
+        id: d?.id ?? d?._id ?? entryId,
+        id_pasien: d?.id_pasien ?? d?.idPasien ?? null,
+        id_dokter: d?.id_dokter ?? d?.idDokter ?? null,
+        tanggal: d?.tanggal ?? '',
+        butuhUSG: !!d?.butuhUSG,
+        butuhRontgen: !!d?.butuhRontgen,
+        butuhCTScan: !!d?.butuhCTScan,
+        butuhBiopsi: !!d?.butuhBiopsi,
+        statusOperasi: d?.statusOperasi ?? d?.status_operasi ?? '',
+        jenisTindakan: d?.jenisTindakan ?? d?.jenis_tindakan ?? '',
+        prioritas: d?.prioritas ?? '',
+        catatanBedah: d?.catatanBedah ?? d?.catatan_bedah ?? '',
+        jadwalBedah: d?.jadwalBedah ?? d?.jadwal_bedah ?? '',
+      })
+      setEditPenunjangVisible(true)
+    } catch (e) {
+      console.error(e)
+      setEditPenunjangError(String(e.message || e))
+    } finally {
+      setEditPenunjangLoading(false)
+    }
+  }
+
+  const submitEditPenunjang = async (e) => {
+    e && e.preventDefault && e.preventDefault()
+    setEditPenunjangError('')
+    setIsSubmittingEditPenunjang(true)
+    try {
+      const id = editPenunjangForm.id
+      if (!id) throw new Error('ID entri tidak diketahui')
+      const idEnc = encodeURIComponent(id)
+      const urls = [
+        `${API_BASE_URL}/pemeriksaan_penunjang_bedah/${idEnc}`,
+        `http://localhost:8080/pemeriksaan_penunjang_bedah/${idEnc}`,
+      ]
+
+      const payload = {
+        butuh_usg: !!editPenunjangForm.butuhUSG,
+        butuh_rontgen: !!editPenunjangForm.butuhRontgen,
+        butuh_ctscan: !!editPenunjangForm.butuhCTScan,
+        butuh_biopsi: !!editPenunjangForm.butuhBiopsi,
+        status_operasi: editPenunjangForm.statusOperasi,
+        jenis_tindakan: editPenunjangForm.jenisTindakan,
+        prioritas: editPenunjangForm.prioritas,
+        catatan_bedah: editPenunjangForm.catatanBedah,
+        jadwal_bedah: editPenunjangForm.jadwalBedah ? new Date(editPenunjangForm.jadwalBedah).toISOString() : '',
+      }
+
+      let lastErr = null
+      let resp = null
+      for (const u of urls) {
+        try {
+          resp = await fetch(u, { method: 'PATCH', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) })
+          if (resp && resp.ok) break
+          const txt = await resp.text().catch(() => '')
+          lastErr = `HTTP ${resp.status} ${resp.statusText} - ${txt} @ ${u}`
+          resp = null
+        } catch (err) {
+          lastErr = String(err.message || err)
+          resp = null
+        }
+      }
+      if (!resp) throw new Error(lastErr || 'Gagal menghubungi server untuk memperbarui entri penunjang')
+      setEditPenunjangVisible(false)
+      setPenunjangMessage('Entri penunjang bedah berhasil diperbarui')
+      try { await fetchPenunjangHistory(editPenunjangForm.id_pasien ?? selectedPatient?.id) } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error(e)
+      setEditPenunjangError(String(e.message || e))
+    } finally {
+      setIsSubmittingEditPenunjang(false)
+    }
+  }
+
+  const patchHidePenunjang = async (entryId) => {
+    if (!entryId) { setPenunjangError('ID entri tidak tersedia'); return }
+    try {
+      const u = `${API_BASE_URL}/pemeriksaan_penunjang_bedah/${encodeURIComponent(entryId)}/hide`
+      const r = await fetch(u, { method: 'PATCH', credentials: 'include', headers: { Accept: 'application/json' } })
+      if (!r.ok) {
+        const txt = await r.text().catch(() => '')
+        throw new Error(`HTTP ${r.status} ${r.statusText} - ${txt}`)
+      }
+      setPenunjangMessage('Entri penunjang bedah berhasil disembunyikan')
+      try { await fetchPenunjangHistory(selectedPatient?.id ?? selectedPatient?.idPasien) } catch (e) { /* ignore */ }
+    } catch (e) {
+      console.error(e)
+      setPenunjangError(String(e.message || e))
+    }
+  }
+
   const submitEditLokalis = async (e) => {
     e && e.preventDefault && e.preventDefault()
     setEditError('')
@@ -614,8 +913,8 @@ function PoliBedah() {
   }
 
   const renderTabContent = () => {
-    return (
-      selectedTab === 'lokalis' ? (
+    if (selectedTab === 'lokalis') {
+      return (
         <>
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
             <div style={{ width: 360 }}>
@@ -762,7 +1061,10 @@ function PoliBedah() {
           </div>
           {renderLokalisHistory()}
         </>
-      ) : (
+      )
+    }
+    if (selectedTab === 'vital') {
+      return (
         <>
           <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
             <div style={{ width: 360 }}>
@@ -771,14 +1073,16 @@ function PoliBedah() {
                 <div style={{ opacity: 0.9, marginTop: 8 }}>{selectedPatient?.poliklinik || selectedPatient?.poli || '-'}</div>
 
                 <div style={{ marginTop: 12, fontSize: 13 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Tgl Masuk</div><div>{selectedPatient?.tanggalMasuk || '-'}</div></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>NIK</div><div>{selectedPatient?.nik || '-'}</div></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>JK</div><div>{selectedPatient?.jenisKelamin || selectedPatient?.jk || '-'}</div></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>TTL</div><div>{selectedPatient?.tempatTanggalLahir || (selectedPatient?.tempatLahir || selectedPatient?.ttl || '-')}</div></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>No. Telp</div><div>{selectedPatient?.nomorTelepon || selectedPatient?.telepon || selectedPatient?.noTelp || '-'}</div></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Alamat</div><div>{selectedPatient?.alamat || '-'}</div></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Kategori</div><div>{selectedPatient?.kategori || '-'}</div></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Pekerjaan</div><div>{selectedPatient?.pekerjaan || '-'}</div></div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '6px 12px', alignItems: 'start', lineHeight: '1.25' }}>
+                    <div style={{ opacity: 0.9 }}>Tgl Masuk</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.tanggalMasuk || '-'}</div>
+                    <div style={{ opacity: 0.9 }}>NIK</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.nik || '-'}</div>
+                    <div style={{ opacity: 0.9 }}>JK</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.jenisKelamin || selectedPatient?.jk || '-'}</div>
+                    <div style={{ opacity: 0.9 }}>TTL</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.tempatTanggalLahir || (selectedPatient?.tempatLahir || selectedPatient?.ttl || '-')}</div>
+                    <div style={{ opacity: 0.9 }}>No. Telp</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.nomorTelepon || selectedPatient?.telepon || selectedPatient?.noTelp || '-'}</div>
+                    <div style={{ opacity: 0.9 }}>Alamat</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.alamat || '-'}</div>
+                    <div style={{ opacity: 0.9 }}>Kategori</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.kategori || '-'}</div>
+                    <div style={{ opacity: 0.9 }}>Pekerjaan</div><div style={{ overflowWrap: 'anywhere' }}>{selectedPatient?.pekerjaan || '-'}</div>
+                  </div>
                 </div>
 
               </div>
@@ -888,12 +1192,164 @@ function PoliBedah() {
                   <button type="submit" disabled={isSubmittingFungsi} style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6 }}>{isSubmittingFungsi ? 'Menyimpan...' : 'Simpan Pemeriksaan'}</button>
                 </div>
               </form>
-              {renderFungsiHistory()}
             </div>
           </div>
+          {renderFungsiHistory()}
         </>
       )
-    )
+    }
+
+    if (selectedTab === 'penunjang') {
+      return (
+        <>
+          <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+            <div style={{ width: 360 }}>
+              <div style={{ background: 'linear-gradient(180deg,#0f766e 0%, #047857 100%)', color: '#fff', borderRadius: 8, padding: 18 }}>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>{selectedPatient ? (selectedPatient.namaPasien || selectedPatient.full_name || selectedPatient.nama || '') : (antrian[0]?.namaPasien || '')}</div>
+                <div style={{ opacity: 0.9, marginTop: 8 }}>{selectedPatient?.poliklinik || selectedPatient?.poli || '-'}</div>
+
+                <div style={{ marginTop: 12, fontSize: 13 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Tgl Masuk</div><div>{selectedPatient?.tanggalMasuk || '-'}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>NIK</div><div>{selectedPatient?.nik || '-'}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>JK</div><div>{selectedPatient?.jenisKelamin || selectedPatient?.jk || '-'}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>TTL</div><div>{selectedPatient?.tempatTanggalLahir || (selectedPatient?.tempatLahir || selectedPatient?.ttl || '-')}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>No. Telp</div><div>{selectedPatient?.nomorTelepon || selectedPatient?.telepon || selectedPatient?.noTelp || '-'}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Alamat</div><div>{selectedPatient?.alamat || '-'}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Kategori</div><div>{selectedPatient?.kategori || '-'}</div></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><div>Pekerjaan</div><div>{selectedPatient?.pekerjaan || '-'}</div></div>
+                </div>
+              </div>
+            </div>
+
+                <div style={{ flex: 1 }}>
+              <h3 style={{ marginTop: 0 }}>Penunjang Bedah</h3>
+              {penunjangMessage && <div style={{ color: '#059669', marginBottom: 8 }}>{penunjangMessage}</div>}
+              {penunjangError && <div style={{ color: '#b91c1c', marginBottom: 8 }}>{penunjangError}</div>}
+              <form onSubmit={async (e) => {
+                e.preventDefault()
+                setPenunjangMessage('')
+                setPenunjangError('')
+                setIsSubmittingPenunjang(true)
+                try {
+                  const idPasien = selectedPatient?.id ?? selectedPatient?.idPasien ?? antrian[0]?.idPasien ?? antrian[0]?.id
+                  if (!idPasien) throw new Error('Tidak ada pasien terpilih')
+
+                  const stored = localStorage.getItem('user')
+                  const parsed = stored ? JSON.parse(stored) : {}
+                  let idDokter = parsed?.idDokter ?? parsed?.dokterId ?? parsed?.dokter_id ?? parsed?.id
+                  if (!idDokter) {
+                    try {
+                      const res = await fetch(`${API_BASE_URL}/dokter/`, { credentials: 'include', headers: { Accept: 'application/json' }, cache: 'no-store' })
+                      if (res && res.ok) {
+                        const list = await res.json()
+                        const my = Array.isArray(list) ? list.find(d => (d.id_user == parsed?.id) || (d.idUser == parsed?.id) || (d.user_id == parsed?.id)) : null
+                        if (my) idDokter = my.id
+                      }
+                    } catch (e) { /* ignore */ }
+                  }
+                  if (!idDokter) throw new Error('Tidak dapat menentukan id dokter yang login')
+
+                  const payload = {
+                    id_pasien: Number(idPasien),
+                    id_dokter: Number(idDokter),
+                    butuhUSG: !!penunjangForm.butuhUSG,
+                    butuhRontgen: !!penunjangForm.butuhRontgen,
+                    butuhCTScan: !!penunjangForm.butuhCTScan,
+                    butuhBiopsi: !!penunjangForm.butuhBiopsi,
+                    statusOperasi: penunjangForm.statusOperasi,
+                    jenisTindakan: penunjangForm.jenisTindakan,
+                    prioritas: penunjangForm.prioritas,
+                    catatanBedah: penunjangForm.catatanBedah,
+                    jadwalBedah: penunjangForm.jadwalBedah ? new Date(penunjangForm.jadwalBedah).toISOString() : '',
+                  }
+
+                  const urls = [
+                    `${API_BASE_URL}/pemeriksaan_penunjang_bedah`,
+                    '/pemeriksaan_penunjang_bedah',
+                    'http://localhost:8080/pemeriksaan_penunjang_bedah',
+                  ]
+                  let resp = null
+                  let lastErr = null
+                  for (const u of urls) {
+                    try {
+                      resp = await fetch(u, { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) })
+                      if (resp && resp.ok) break
+                      const txt = await resp.text().catch(() => '')
+                      lastErr = `HTTP ${resp.status} ${resp.statusText} - ${txt} @ ${u}`
+                      resp = null
+                    } catch (e) {
+                      lastErr = String(e.message || e)
+                      resp = null
+                    }
+                  }
+                  if (!resp) {
+                    // Show detailed last error when available to help debug (CORS/dev-server)
+                    throw new Error(lastErr || 'Gagal menghubungi server penunjang. Pastikan backend berjalan di http://localhost:8080 dan dev server dijalankan (npm run dev)')
+                  }
+                  setPenunjangMessage('Data penunjang bedah berhasil disimpan')
+                  setPenunjangForm({ butuhUSG: false, butuhRontgen: false, butuhCTScan: false, butuhBiopsi: false, statusOperasi: '', jenisTindakan: '', prioritas: '', catatanBedah: '', jadwalBedah: '' })
+                  try { await fetchPenunjangHistory(idPasien) } catch (e) { /* ignore */ }
+                } catch (err) {
+                  console.error(err)
+                  setPenunjangError(String(err.message || err))
+                } finally {
+                  setIsSubmittingPenunjang(false)
+                }
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input id="butuhUSG" type="checkbox" checked={!!penunjangForm.butuhUSG} onChange={(ev) => setPenunjangForm(prev => ({ ...prev, butuhUSG: ev.target.checked }))} />
+                    <label htmlFor="butuhUSG">Butuh USG</label>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input id="butuhRontgen" type="checkbox" checked={!!penunjangForm.butuhRontgen} onChange={(ev) => setPenunjangForm(prev => ({ ...prev, butuhRontgen: ev.target.checked }))} />
+                    <label htmlFor="butuhRontgen">Butuh Rontgen</label>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input id="butuhCTScan" type="checkbox" checked={!!penunjangForm.butuhCTScan} onChange={(ev) => setPenunjangForm(prev => ({ ...prev, butuhCTScan: ev.target.checked }))} />
+                    <label htmlFor="butuhCTScan">Butuh CT Scan</label>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input id="butuhBiopsi" type="checkbox" checked={!!penunjangForm.butuhBiopsi} onChange={(ev) => setPenunjangForm(prev => ({ ...prev, butuhBiopsi: ev.target.checked }))} />
+                    <label htmlFor="butuhBiopsi">Butuh Biopsi</label>
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13 }}>Status Operasi</label>
+                    <input type="text" value={penunjangForm.statusOperasi} onChange={(ev) => setPenunjangForm(prev => ({ ...prev, statusOperasi: ev.target.value }))} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13 }}>Jenis Tindakan</label>
+                    <input type="text" value={penunjangForm.jenisTindakan} onChange={(ev) => setPenunjangForm(prev => ({ ...prev, jenisTindakan: ev.target.value }))} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13 }}>Prioritas</label>
+                    <input type="text" value={penunjangForm.prioritas} onChange={(ev) => setPenunjangForm(prev => ({ ...prev, prioritas: ev.target.value }))} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: 13 }}>Jadwal Bedah</label>
+                    <input type="datetime-local" value={penunjangForm.jadwalBedah} onChange={(ev) => setPenunjangForm(prev => ({ ...prev, jadwalBedah: ev.target.value }))} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                  </div>
+
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ display: 'block', fontSize: 13 }}>Catatan Bedah</label>
+                    <textarea value={penunjangForm.catatanBedah} onChange={(ev) => setPenunjangForm(prev => ({ ...prev, catatanBedah: ev.target.value }))} rows={3} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12 }}>
+                  <button type="submit" disabled={isSubmittingPenunjang} style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: 6 }}>{isSubmittingPenunjang ? 'Menyimpan...' : 'Simpan Penunjang'}</button>
+                </div>
+              </form>
+                </div>
+            </div>
+            {renderPenunjangHistory()}
+        </>
+      )
+    }
+
+    return null
   }
 
   return (
@@ -915,6 +1371,67 @@ function PoliBedah() {
                 <button type="button" onClick={handleConfirmNo} style={{ background: '#e5e7eb', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer' }}>Batal</button>
                 <button type="button" onClick={handleConfirmYes} style={{ background: '#0ea5a4', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer' }}>Hapus</button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {editPenunjangVisible && (
+          <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 80 }}>
+            <div style={{ width: 640, background: '#fff', borderRadius: 8, padding: 18, maxHeight: '90vh', overflowY: 'auto', color: '#0f172a' }}>
+              <h3 style={{ marginTop: 0 }}>Ubah Pemeriksaan Penunjang Bedah</h3>
+              {editPenunjangLoading ? (
+                <div style={{ color: '#64748b' }}>Memuat data...</div>
+              ) : (
+                <form onSubmit={submitEditPenunjang}>
+                  {editPenunjangError && <div style={{ color: '#b91c1c', marginBottom: 8 }}>{editPenunjangError}</div>}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input id="editButuhUSG" type="checkbox" checked={!!editPenunjangForm.butuhUSG} onChange={(ev) => setEditPenunjangForm(prev => ({ ...prev, butuhUSG: ev.target.checked }))} />
+                      <label htmlFor="editButuhUSG">Butuh USG</label>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input id="editButuhRontgen" type="checkbox" checked={!!editPenunjangForm.butuhRontgen} onChange={(ev) => setEditPenunjangForm(prev => ({ ...prev, butuhRontgen: ev.target.checked }))} />
+                      <label htmlFor="editButuhRontgen">Butuh Rontgen</label>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input id="editButuhCTScan" type="checkbox" checked={!!editPenunjangForm.butuhCTScan} onChange={(ev) => setEditPenunjangForm(prev => ({ ...prev, butuhCTScan: ev.target.checked }))} />
+                      <label htmlFor="editButuhCTScan">Butuh CT Scan</label>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input id="editButuhBiopsi" type="checkbox" checked={!!editPenunjangForm.butuhBiopsi} onChange={(ev) => setEditPenunjangForm(prev => ({ ...prev, butuhBiopsi: ev.target.checked }))} />
+                      <label htmlFor="editButuhBiopsi">Butuh Biopsi</label>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: 13 }}>Status Operasi</label>
+                      <input type="text" value={editPenunjangForm.statusOperasi} onChange={(ev) => setEditPenunjangForm(prev => ({ ...prev, statusOperasi: ev.target.value }))} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 13 }}>Jenis Tindakan</label>
+                      <input type="text" value={editPenunjangForm.jenisTindakan} onChange={(ev) => setEditPenunjangForm(prev => ({ ...prev, jenisTindakan: ev.target.value }))} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: 13 }}>Prioritas</label>
+                      <input type="text" value={editPenunjangForm.prioritas} onChange={(ev) => setEditPenunjangForm(prev => ({ ...prev, prioritas: ev.target.value }))} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: 13 }}>Jadwal Bedah</label>
+                      <input type="datetime-local" value={editPenunjangForm.jadwalBedah} onChange={(ev) => setEditPenunjangForm(prev => ({ ...prev, jadwalBedah: ev.target.value }))} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ display: 'block', fontSize: 13 }}>Catatan Bedah</label>
+                      <textarea value={editPenunjangForm.catatanBedah} onChange={(ev) => setEditPenunjangForm(prev => ({ ...prev, catatanBedah: ev.target.value }))} rows={3} style={{ width: '100%', padding: 8, borderRadius: 6, border: '1px solid #e6eef8' }} />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12 }}>
+                    <button type="button" onClick={() => setEditPenunjangVisible(false)} style={{ background: '#e5e7eb', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer' }}>Batal</button>
+                    <button type="submit" disabled={isSubmittingEditPenunjang} style={{ background: '#0ea5a4', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, cursor: 'pointer' }}>{isSubmittingEditPenunjang ? 'Menyimpan...' : 'Simpan'}</button>
+                  </div>
+                </form>
+              )}
             </div>
           </div>
         )}
@@ -1083,6 +1600,8 @@ function PoliBedah() {
           <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
             <button type="button" onClick={() => setSelectedTab('lokalis')} style={{ padding: '8px 14px', borderRadius: 999, border: selectedTab === 'lokalis' ? '1px solid #60a5fa' : '1px solid #e6eef8', background: selectedTab === 'lokalis' ? '#e6f2ff' : '#ffffff', color: selectedTab === 'lokalis' ? '#0b57d0' : '#374151', cursor: 'pointer' }}>Lokalis Bedah</button>
             <button type="button" onClick={() => setSelectedTab('vital')} style={{ padding: '8px 14px', borderRadius: 999, border: selectedTab === 'vital' ? '1px solid #60a5fa' : '1px solid #e6eef8', background: selectedTab === 'vital' ? '#e6f2ff' : '#ffffff', color: selectedTab === 'vital' ? '#0b57d0' : '#374151', cursor: 'pointer' }}>Fungsi Organ</button>
+            <button type="button" onClick={() => setSelectedTab('penunjang')} style={{ padding: '8px 14px', borderRadius: 999, border: selectedTab === 'penunjang' ? '1px solid #60a5fa' : '1px solid #e6eef8', background: selectedTab === 'penunjang' ? '#e6f2ff' : '#ffffff', color: selectedTab === 'penunjang' ? '#0b57d0' : '#374151', cursor: 'pointer' }}>Penunjang Bedah</button>
+            <button type="button" onClick={handleMarkSelesai} disabled={isMarkingSelesai} style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid #e6eef8', background: isMarkingSelesai ? '#94a3b8' : '#10b981', color: '#fff', cursor: 'pointer' }}>{isMarkingSelesai ? 'Memproses...' : 'Selesai'}</button>
           </div>
           <div style={{ background: '#ffffff', padding: 16, borderRadius: 8, boxShadow: '0 0 0 1px rgba(15,23,42,0.03)' }}>
             {renderTabContent()}

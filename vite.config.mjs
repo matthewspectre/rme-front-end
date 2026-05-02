@@ -38,6 +38,10 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
       },
+      '/pemeriksaan_penunjang_bedah': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+      },
       '/lokalis-bedah': {
         target: 'http://localhost:8080',
         changeOrigin: true,
