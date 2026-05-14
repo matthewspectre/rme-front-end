@@ -5,6 +5,12 @@ import PoliUmum from './doctor/PoliUmum'
 import PoliPenyakitDalam from './doctor/PoliPenyakitDalam'
 import PoliBedah from './doctor/PoliBedah'
 import FrontOfficeDashboard from './frontoffice/FrontOfficeDashboard'
+import DataWarehouseLogin from './DataWarehouseLogin'
+import DWMenu from './DWMenu'
+import DWAdminDashboard from './DWAdminDashboard'
+import DWPoliUmum from './dw/DWPoliUmum'
+import DWPoliPenyakitDalam from './dw/DWPoliPenyakitDalam'
+import DWPoliBedah from './dw/DWPoliBedah'
 import ErrorBoundary from './ErrorBoundary'
 import { API_BASE_URL } from './api'
 
@@ -143,6 +149,10 @@ function LoginPage() {
               </button>
             </p>
 
+            <div style={{ marginTop: 12 }}>
+              <DWMenu />
+            </div>
+
             <p className="login-footer">
               © 2026 Sistem Rekam Medis Elektronik. Data pasien terlindungi dan
               terenkripsi.
@@ -176,6 +186,11 @@ function App() {
         <Route path="/pemeriksaan/poli-umum" element={<PoliUmum />} />
         <Route path="/pemeriksaan/poli-penyakit-dalam" element={<PoliPenyakitDalam />} />
         <Route path="/pemeriksaan/poli-bedah" element={<PoliBedah />} />
+        <Route path="/dw-login" element={<DataWarehouseLogin />} />
+        <Route path="/dw-dashboard" element={<DWAdminDashboard />} />
+        <Route path="/dw/poli-umum" element={<DWPoliUmum />} />
+        <Route path="/dw/poli-penyakit-dalam" element={<DWPoliPenyakitDalam />} />
+        <Route path="/dw/poli-bedah" element={<DWPoliBedah />} />
 
         <Route path="/front-office" element={<FrontOfficeDashboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
