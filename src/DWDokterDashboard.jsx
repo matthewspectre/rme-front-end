@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import DWLayout from './dw/DWLayout'
 
-function DWAdminDashboard() {
+function DWDokterDashboard() {
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
@@ -15,8 +15,9 @@ function DWAdminDashboard() {
     }
     try {
       const u = JSON.parse(raw)
-      if (u.username !== 'admin') {
-        navigate('/dw-login')
+      const isAdmin = (u?.role === 'dw_admin') || (u?.username === 'admin')
+      if (isAdmin) {
+        navigate('/dw-dashboard')
       }
     } catch (e) {
       navigate('/dw-login')
@@ -41,11 +42,29 @@ function DWAdminDashboard() {
     navigate('/')
   }
 
+  let displayName = 'Dokter DW'
+  let initials = 'DW'
+  try {
+    const raw = localStorage.getItem('dw_user')
+    const u = raw ? JSON.parse(raw) : null
+    const uname = String(u?.username || '').trim()
+    if (uname) {
+      displayName = uname
+      initials = uname
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((p) => p[0])
+        .slice(0, 2)
+        .join('')
+        .toUpperCase()
+    }
+  } catch (e) {}
+
   return (
     <DWLayout>
       <div className="doctor-header">
         <div>
-          <h1 className="doctor-title">Data Warehouse RME-LINK - Dashboard Admin</h1>
+          <h1 className="doctor-title">Data Warehouse RME-LINK - Dashboard Dokter</h1>
           <p className="doctor-date">{new Date().toLocaleString()}</p>
         </div>
 
@@ -59,10 +78,10 @@ function DWAdminDashboard() {
               aria-expanded={menuOpen}
             >
               <div className="profile-info">
-                <div className="profile-name">Admin DW</div>
-                <div className="profile-role">Administrator</div>
+                <div className="profile-name">{displayName}</div>
+                <div className="profile-role">Dokter</div>
               </div>
-              <div className="profile-avatar">AD</div>
+              <div className="profile-avatar">{initials}</div>
             </button>
 
             {menuOpen && (
@@ -84,7 +103,7 @@ function DWAdminDashboard() {
       <div className="doctor-grid">
         <div className="doctor-card">
           <h2>Ringkasan</h2>
-          <p>Konten ringkasan sementara untuk Data Warehouse.</p>
+          <p>Dashboard dokter (mode testing). Silakan pilih Poli di sidebar.</p>
         </div>
 
         <div className="doctor-side-column">
@@ -98,4 +117,4 @@ function DWAdminDashboard() {
   )
 }
 
-export default DWAdminDashboard
+export default DWDokterDashboard

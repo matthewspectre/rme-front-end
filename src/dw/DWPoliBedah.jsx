@@ -5,6 +5,30 @@ import { API_BASE_URL } from '../api'
 export default function DWPoliBedah() {
   const [selectedTab, setSelectedTab] = useState('lokalis')
 
+  const [etlLokalisLoading, setEtlLokalisLoading] = useState(false)
+  const [etlLokalisError, setEtlLokalisError] = useState('')
+  const [etlLokalisResult, setEtlLokalisResult] = useState(null)
+  const [lokalisRefreshKey, setLokalisRefreshKey] = useState(0)
+
+  const [etlFungsiLoading, setEtlFungsiLoading] = useState(false)
+  const [etlFungsiError, setEtlFungsiError] = useState('')
+  const [etlFungsiResult, setEtlFungsiResult] = useState(null)
+  const [fungsiRefreshKey, setFungsiRefreshKey] = useState(0)
+
+  const [etlPenunjangLoading, setEtlPenunjangLoading] = useState(false)
+  const [etlPenunjangError, setEtlPenunjangError] = useState('')
+  const [etlPenunjangResult, setEtlPenunjangResult] = useState(null)
+  const [penunjangRefreshKey, setPenunjangRefreshKey] = useState(0)
+
+  let isDwAdmin = false
+  try {
+    const raw = localStorage.getItem('dw_user')
+    const u = raw ? JSON.parse(raw) : null
+    isDwAdmin = (u?.role === 'dw_admin') || (u?.username === 'admin')
+  } catch (e) {
+    isDwAdmin = false
+  }
+
   const [patients, setPatients] = useState([])
   const [patientQuery, setPatientQuery] = useState('')
   const [patientNik, setPatientNik] = useState('')
@@ -106,7 +130,32 @@ export default function DWPoliBedah() {
       clearTimeout(t)
       try { controller.abort() } catch (e) {}
     }
-  }, [patientNik])
+  }, [patientNik, lokalisRefreshKey])
+
+  const runEtlLokalis = async () => {
+    if (!isDwAdmin) return
+    setEtlLokalisLoading(true)
+    setEtlLokalisError('')
+    setEtlLokalisResult(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/lokalis_bedah/etl`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
+      const js = await res.json().catch(() => ({}))
+      setEtlLokalisResult(js)
+      setLokalisRefreshKey((n) => n + 1)
+    } catch (e) {
+      setEtlLokalisError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEtlLokalisLoading(false)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -148,7 +197,32 @@ export default function DWPoliBedah() {
       clearTimeout(t)
       try { controller.abort() } catch (e) {}
     }
-  }, [selectedTab, patientNik])
+  }, [selectedTab, patientNik, fungsiRefreshKey])
+
+  const runEtlFungsi = async () => {
+    if (!isDwAdmin) return
+    setEtlFungsiLoading(true)
+    setEtlFungsiError('')
+    setEtlFungsiResult(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/pemeriksaan_fungsi_organ/etl`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
+      const js = await res.json().catch(() => ({}))
+      setEtlFungsiResult(js)
+      setFungsiRefreshKey((n) => n + 1)
+    } catch (e) {
+      setEtlFungsiError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEtlFungsiLoading(false)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -190,7 +264,32 @@ export default function DWPoliBedah() {
       clearTimeout(t)
       try { controller.abort() } catch (e) {}
     }
-  }, [selectedTab, patientNik])
+  }, [selectedTab, patientNik, penunjangRefreshKey])
+
+  const runEtlPenunjang = async () => {
+    if (!isDwAdmin) return
+    setEtlPenunjangLoading(true)
+    setEtlPenunjangError('')
+    setEtlPenunjangResult(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/pemeriksaan_penunjang_bedah/etl`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
+      const js = await res.json().catch(() => ({}))
+      setEtlPenunjangResult(js)
+      setPenunjangRefreshKey((n) => n + 1)
+    } catch (e) {
+      setEtlPenunjangError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEtlPenunjangLoading(false)
+    }
+  }
 
   const normalizedNik = String(patientNik || '').trim()
   const matchedPatientByNik = normalizedNik
@@ -285,6 +384,41 @@ export default function DWPoliBedah() {
 
           {selectedTab === 'lokalis' && (
             <>
+              {isDwAdmin && (
+                <div style={{ marginBottom: 12, padding: 12, border: '1px solid #e6eef8', borderRadius: 10, background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#111827' }}>Proses ETL Lokalis Bedah</div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>Klik untuk menarik data baru ke warehouse.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={runEtlLokalis}
+                      disabled={etlLokalisLoading}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1px solid #e6eef8',
+                        background: etlLokalisLoading ? '#f1f5f9' : '#ffffff',
+                        color: '#111827',
+                        cursor: etlLokalisLoading ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {etlLokalisLoading ? 'Memproses...' : 'Jalankan ETL'}
+                    </button>
+                  </div>
+                  {etlLokalisError && <div style={{ marginTop: 10, color: 'var(--error)' }}>{etlLokalisError}</div>}
+                  {etlLokalisResult && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: '#111827' }}>
+                      <div><b>Message:</b> {etlLokalisResult.message ?? '-'}</div>
+                      <div><b>Inserted RS A:</b> {etlLokalisResult.inserted_rs_a ?? '-'}</div>
+                      <div><b>Inserted RS B:</b> {etlLokalisResult.inserted_rs_b ?? '-'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0 }}>Riwayat Lokalis Bedah (Warehouse)</h2>
                 <div style={{ minWidth: 320, maxWidth: 520, flex: '1 1 320px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -373,6 +507,41 @@ export default function DWPoliBedah() {
 
           {selectedTab === 'fungsi' && (
             <>
+              {isDwAdmin && (
+                <div style={{ marginBottom: 12, padding: 12, border: '1px solid #e6eef8', borderRadius: 10, background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#111827' }}>Proses ETL Fungsi Organ</div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>Klik untuk menarik data baru ke warehouse.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={runEtlFungsi}
+                      disabled={etlFungsiLoading}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1px solid #e6eef8',
+                        background: etlFungsiLoading ? '#f1f5f9' : '#ffffff',
+                        color: '#111827',
+                        cursor: etlFungsiLoading ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {etlFungsiLoading ? 'Memproses...' : 'Jalankan ETL'}
+                    </button>
+                  </div>
+                  {etlFungsiError && <div style={{ marginTop: 10, color: 'var(--error)' }}>{etlFungsiError}</div>}
+                  {etlFungsiResult && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: '#111827' }}>
+                      <div><b>Message:</b> {etlFungsiResult.message ?? '-'}</div>
+                      <div><b>Inserted RS A:</b> {etlFungsiResult.inserted_rs_a ?? '-'}</div>
+                      <div><b>Inserted RS B:</b> {etlFungsiResult.inserted_rs_b ?? '-'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0 }}>Riwayat Fungsi Organ (Warehouse)</h2>
                 <div style={{ minWidth: 320, maxWidth: 520, flex: '1 1 320px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -457,6 +626,41 @@ export default function DWPoliBedah() {
 
           {selectedTab === 'penunjang' && (
             <>
+              {isDwAdmin && (
+                <div style={{ marginBottom: 12, padding: 12, border: '1px solid #e6eef8', borderRadius: 10, background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#111827' }}>Proses ETL Penunjang Bedah</div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>Klik untuk menarik data baru ke warehouse.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={runEtlPenunjang}
+                      disabled={etlPenunjangLoading}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1px solid #e6eef8',
+                        background: etlPenunjangLoading ? '#f1f5f9' : '#ffffff',
+                        color: '#111827',
+                        cursor: etlPenunjangLoading ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {etlPenunjangLoading ? 'Memproses...' : 'Jalankan ETL'}
+                    </button>
+                  </div>
+                  {etlPenunjangError && <div style={{ marginTop: 10, color: 'var(--error)' }}>{etlPenunjangError}</div>}
+                  {etlPenunjangResult && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: '#111827' }}>
+                      <div><b>Message:</b> {etlPenunjangResult.message ?? '-'}</div>
+                      <div><b>Inserted RS A:</b> {etlPenunjangResult.inserted_rs_a ?? '-'}</div>
+                      <div><b>Inserted RS B:</b> {etlPenunjangResult.inserted_rs_b ?? '-'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0 }}>Riwayat Penunjang Bedah (Warehouse)</h2>
                 <div style={{ minWidth: 320, maxWidth: 520, flex: '1 1 320px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

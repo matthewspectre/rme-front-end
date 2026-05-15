@@ -5,6 +5,30 @@ import { API_BASE_URL } from '../api'
 export default function DWPoliPenyakitDalam() {
   const [selectedTab, setSelectedTab] = useState('lab')
 
+  const [etlLabLoading, setEtlLabLoading] = useState(false)
+  const [etlLabError, setEtlLabError] = useState('')
+  const [etlLabResult, setEtlLabResult] = useState(null)
+  const [labRefreshKey, setLabRefreshKey] = useState(0)
+
+  const [etlEkgLoading, setEtlEkgLoading] = useState(false)
+  const [etlEkgError, setEtlEkgError] = useState('')
+  const [etlEkgResult, setEtlEkgResult] = useState(null)
+  const [ekgRefreshKey, setEkgRefreshKey] = useState(0)
+
+  const [etlDiagnosisLoading, setEtlDiagnosisLoading] = useState(false)
+  const [etlDiagnosisError, setEtlDiagnosisError] = useState('')
+  const [etlDiagnosisResult, setEtlDiagnosisResult] = useState(null)
+  const [diagnosisRefreshKey, setDiagnosisRefreshKey] = useState(0)
+
+  let isDwAdmin = false
+  try {
+    const raw = localStorage.getItem('dw_user')
+    const u = raw ? JSON.parse(raw) : null
+    isDwAdmin = (u?.role === 'dw_admin') || (u?.username === 'admin')
+  } catch (e) {
+    isDwAdmin = false
+  }
+
   const [patients, setPatients] = useState([])
   const [patientQuery, setPatientQuery] = useState('')
   const [patientNik, setPatientNik] = useState('')
@@ -106,7 +130,82 @@ export default function DWPoliPenyakitDalam() {
       clearTimeout(t)
       try { controller.abort() } catch (e) {}
     }
-  }, [patientNik])
+  }, [patientNik, labRefreshKey])
+
+  const runEtlLab = async () => {
+    if (!isDwAdmin) return
+    setEtlLabLoading(true)
+    setEtlLabError('')
+    setEtlLabResult(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/pemeriksaan_laboratorium/etl`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
+      const js = await res.json().catch(() => ({}))
+      setEtlLabResult(js)
+      setLabRefreshKey((n) => n + 1)
+    } catch (e) {
+      setEtlLabError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEtlLabLoading(false)
+    }
+  }
+
+  const runEtlEkg = async () => {
+    if (!isDwAdmin) return
+    setEtlEkgLoading(true)
+    setEtlEkgError('')
+    setEtlEkgResult(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/pemeriksaan_ekg/etl`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
+      const js = await res.json().catch(() => ({}))
+      setEtlEkgResult(js)
+      setEkgRefreshKey((n) => n + 1)
+    } catch (e) {
+      setEtlEkgError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEtlEkgLoading(false)
+    }
+  }
+
+  const runEtlDiagnosis = async () => {
+    if (!isDwAdmin) return
+    setEtlDiagnosisLoading(true)
+    setEtlDiagnosisError('')
+    setEtlDiagnosisResult(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/diagnosis/etl`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
+      const js = await res.json().catch(() => ({}))
+      setEtlDiagnosisResult(js)
+      setDiagnosisRefreshKey((n) => n + 1)
+    } catch (e) {
+      setEtlDiagnosisError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEtlDiagnosisLoading(false)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -148,7 +247,7 @@ export default function DWPoliPenyakitDalam() {
       clearTimeout(t)
       try { controller.abort() } catch (e) {}
     }
-  }, [selectedTab, patientNik])
+  }, [selectedTab, patientNik, ekgRefreshKey])
 
   useEffect(() => {
     let mounted = true
@@ -190,7 +289,7 @@ export default function DWPoliPenyakitDalam() {
       clearTimeout(t)
       try { controller.abort() } catch (e) {}
     }
-  }, [selectedTab, patientNik])
+  }, [selectedTab, patientNik, diagnosisRefreshKey])
 
   const normalizedNik = String(patientNik || '').trim()
   const matchedPatientByNik = normalizedNik
@@ -283,6 +382,41 @@ export default function DWPoliPenyakitDalam() {
 
           {selectedTab === 'lab' && (
             <>
+              {isDwAdmin && (
+                <div style={{ marginBottom: 12, padding: 12, border: '1px solid #e6eef8', borderRadius: 10, background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#111827' }}>Proses ETL Pemeriksaan Laboratorium</div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>Klik untuk menarik data baru ke warehouse.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={runEtlLab}
+                      disabled={etlLabLoading}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1px solid #e6eef8',
+                        background: etlLabLoading ? '#f1f5f9' : '#ffffff',
+                        color: '#111827',
+                        cursor: etlLabLoading ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {etlLabLoading ? 'Memproses...' : 'Jalankan ETL'}
+                    </button>
+                  </div>
+                  {etlLabError && <div style={{ marginTop: 10, color: 'var(--error)' }}>{etlLabError}</div>}
+                  {etlLabResult && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: '#111827' }}>
+                      <div><b>Message:</b> {etlLabResult.message ?? '-'}</div>
+                      <div><b>Inserted RS A:</b> {etlLabResult.inserted_rs_a ?? '-'}</div>
+                      <div><b>Inserted RS B:</b> {etlLabResult.inserted_rs_b ?? '-'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0 }}>Riwayat Pemeriksaan Laboratorium (Warehouse)</h2>
                 <div style={{ minWidth: 320, maxWidth: 520, flex: '1 1 320px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -389,6 +523,41 @@ export default function DWPoliPenyakitDalam() {
 
           {selectedTab === 'ekg' && (
             <>
+              {isDwAdmin && (
+                <div style={{ marginBottom: 12, padding: 12, border: '1px solid #e6eef8', borderRadius: 10, background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#111827' }}>Proses ETL Pemeriksaan EKG</div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>Klik untuk menarik data baru ke warehouse.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={runEtlEkg}
+                      disabled={etlEkgLoading}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1px solid #e6eef8',
+                        background: etlEkgLoading ? '#f1f5f9' : '#ffffff',
+                        color: '#111827',
+                        cursor: etlEkgLoading ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {etlEkgLoading ? 'Memproses...' : 'Jalankan ETL'}
+                    </button>
+                  </div>
+                  {etlEkgError && <div style={{ marginTop: 10, color: 'var(--error)' }}>{etlEkgError}</div>}
+                  {etlEkgResult && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: '#111827' }}>
+                      <div><b>Message:</b> {etlEkgResult.message ?? '-'}</div>
+                      <div><b>Inserted RS A:</b> {etlEkgResult.inserted_rs_a ?? '-'}</div>
+                      <div><b>Inserted RS B:</b> {etlEkgResult.inserted_rs_b ?? '-'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0 }}>Riwayat Pemeriksaan EKG (Warehouse)</h2>
                 <div style={{ minWidth: 320, maxWidth: 520, flex: '1 1 320px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -475,6 +644,41 @@ export default function DWPoliPenyakitDalam() {
 
           {selectedTab === 'diagnosis' && (
             <>
+              {isDwAdmin && (
+                <div style={{ marginBottom: 12, padding: 12, border: '1px solid #e6eef8', borderRadius: 10, background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#111827' }}>Proses ETL Catatan Diagnosis</div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>Klik untuk menarik data baru ke warehouse.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={runEtlDiagnosis}
+                      disabled={etlDiagnosisLoading}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1px solid #e6eef8',
+                        background: etlDiagnosisLoading ? '#f1f5f9' : '#ffffff',
+                        color: '#111827',
+                        cursor: etlDiagnosisLoading ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {etlDiagnosisLoading ? 'Memproses...' : 'Jalankan ETL'}
+                    </button>
+                  </div>
+                  {etlDiagnosisError && <div style={{ marginTop: 10, color: 'var(--error)' }}>{etlDiagnosisError}</div>}
+                  {etlDiagnosisResult && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: '#111827' }}>
+                      <div><b>Message:</b> {etlDiagnosisResult.message ?? '-'}</div>
+                      <div><b>Inserted RS A:</b> {etlDiagnosisResult.inserted_rs_a ?? '-'}</div>
+                      <div><b>Inserted RS B:</b> {etlDiagnosisResult.inserted_rs_b ?? '-'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0 }}>Riwayat Catatan Diagnosis (Warehouse)</h2>
                 <div style={{ minWidth: 320, maxWidth: 520, flex: '1 1 320px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

@@ -8,6 +8,7 @@ import FrontOfficeDashboard from './frontoffice/FrontOfficeDashboard'
 import DataWarehouseLogin from './DataWarehouseLogin'
 import DWMenu from './DWMenu'
 import DWAdminDashboard from './DWAdminDashboard'
+import DWDokterDashboard from './DWDokterDashboard'
 import DWPoliUmum from './dw/DWPoliUmum'
 import DWPoliPenyakitDalam from './dw/DWPoliPenyakitDalam'
 import DWPoliBedah from './dw/DWPoliBedah'
@@ -188,6 +189,7 @@ function App() {
         <Route path="/pemeriksaan/poli-bedah" element={<PoliBedah />} />
         <Route path="/dw-login" element={<DataWarehouseLogin />} />
         <Route path="/dw-dashboard" element={<DWAdminDashboard />} />
+        <Route path="/dw-dashboard-dokter" element={<DWDokterDashboard />} />
         <Route path="/dw/poli-umum" element={<DWPoliUmum />} />
         <Route path="/dw/poli-penyakit-dalam" element={<DWPoliPenyakitDalam />} />
         <Route path="/dw/poli-bedah" element={<DWPoliBedah />} />

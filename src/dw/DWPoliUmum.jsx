@@ -5,6 +5,25 @@ import { API_BASE_URL } from '../api'
 export default function DWPoliUmum() {
   const [selectedTab, setSelectedTab] = useState('anamnesis')
 
+  const [etlLoading, setEtlLoading] = useState(false)
+  const [etlError, setEtlError] = useState('')
+  const [etlResult, setEtlResult] = useState(null)
+  const [anamnesisRefreshKey, setAnamnesisRefreshKey] = useState(0)
+
+  const [etlVitalLoading, setEtlVitalLoading] = useState(false)
+  const [etlVitalError, setEtlVitalError] = useState('')
+  const [etlVitalResult, setEtlVitalResult] = useState(null)
+  const [vitalRefreshKey, setVitalRefreshKey] = useState(0)
+
+  let isDwAdmin = false
+  try {
+    const raw = localStorage.getItem('dw_user')
+    const u = raw ? JSON.parse(raw) : null
+    isDwAdmin = (u?.role === 'dw_admin') || (u?.username === 'admin')
+  } catch (e) {
+    isDwAdmin = false
+  }
+
   const [patients, setPatients] = useState([])
   const [patientQuery, setPatientQuery] = useState('')
   const [patientNik, setPatientNik] = useState('')
@@ -101,7 +120,32 @@ export default function DWPoliUmum() {
       clearTimeout(t)
       try { controller.abort() } catch (e) {}
     }
-  }, [patientNik])
+  }, [patientNik, anamnesisRefreshKey])
+
+  const runEtlAnamnesis = async () => {
+    if (!isDwAdmin) return
+    setEtlLoading(true)
+    setEtlError('')
+    setEtlResult(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/anamnesis/etl`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
+      const js = await res.json().catch(() => ({}))
+      setEtlResult(js)
+      setAnamnesisRefreshKey((n) => n + 1)
+    } catch (e) {
+      setEtlError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEtlLoading(false)
+    }
+  }
 
   useEffect(() => {
     let mounted = true
@@ -144,7 +188,32 @@ export default function DWPoliUmum() {
       clearTimeout(t)
       try { controller.abort() } catch (e) {}
     }
-  }, [selectedTab, patientNik])
+  }, [selectedTab, patientNik, vitalRefreshKey])
+
+  const runEtlVital = async () => {
+    if (!isDwAdmin) return
+    setEtlVitalLoading(true)
+    setEtlVitalError('')
+    setEtlVitalResult(null)
+    try {
+      const res = await fetch(`${API_BASE_URL}/pemeriksaan_vital/etl`, {
+        method: 'POST',
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      })
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        throw new Error(`HTTP ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
+      const js = await res.json().catch(() => ({}))
+      setEtlVitalResult(js)
+      setVitalRefreshKey((n) => n + 1)
+    } catch (e) {
+      setEtlVitalError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEtlVitalLoading(false)
+    }
+  }
 
   const normalizedNik = String(patientNik || '').trim()
   const matchedPatientByNik = normalizedNik
@@ -223,6 +292,41 @@ export default function DWPoliUmum() {
 
           {selectedTab === 'anamnesis' && (
             <>
+              {isDwAdmin && (
+                <div style={{ marginBottom: 12, padding: 12, border: '1px solid #e6eef8', borderRadius: 10, background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#111827' }}>Proses ETL Anamnesis</div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>Klik untuk menarik data baru ke warehouse.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={runEtlAnamnesis}
+                      disabled={etlLoading}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1px solid #e6eef8',
+                        background: etlLoading ? '#f1f5f9' : '#ffffff',
+                        color: '#111827',
+                        cursor: etlLoading ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {etlLoading ? 'Memproses...' : 'Jalankan ETL'}
+                    </button>
+                  </div>
+                  {etlError && <div style={{ marginTop: 10, color: 'var(--error)' }}>{etlError}</div>}
+                  {etlResult && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: '#111827' }}>
+                      <div><b>Message:</b> {etlResult.message ?? '-'}</div>
+                      <div><b>Inserted RS A:</b> {etlResult.inserted_rs_a ?? '-'}</div>
+                      <div><b>Inserted RS B:</b> {etlResult.inserted_rs_b ?? '-'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0 }}>Riwayat Anamnesis (Warehouse)</h2>
                 <div style={{ minWidth: 320, maxWidth: 520, flex: '1 1 320px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -314,6 +418,41 @@ export default function DWPoliUmum() {
 
           {selectedTab === 'vital' && (
             <>
+              {isDwAdmin && (
+                <div style={{ marginBottom: 12, padding: 12, border: '1px solid #e6eef8', borderRadius: 10, background: '#ffffff' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#111827' }}>Proses ETL Pemeriksaan Vital</div>
+                      <div style={{ fontSize: 13, color: '#64748b' }}>Klik untuk menarik data baru ke warehouse.</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={runEtlVital}
+                      disabled={etlVitalLoading}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 10,
+                        border: '1px solid #e6eef8',
+                        background: etlVitalLoading ? '#f1f5f9' : '#ffffff',
+                        color: '#111827',
+                        cursor: etlVitalLoading ? 'not-allowed' : 'pointer',
+                        fontWeight: 700,
+                      }}
+                    >
+                      {etlVitalLoading ? 'Memproses...' : 'Jalankan ETL'}
+                    </button>
+                  </div>
+                  {etlVitalError && <div style={{ marginTop: 10, color: 'var(--error)' }}>{etlVitalError}</div>}
+                  {etlVitalResult && (
+                    <div style={{ marginTop: 10, fontSize: 13, color: '#111827' }}>
+                      <div><b>Message:</b> {etlVitalResult.message ?? '-'}</div>
+                      <div><b>Inserted RS A:</b> {etlVitalResult.inserted_rs_a ?? '-'}</div>
+                      <div><b>Inserted RS B:</b> {etlVitalResult.inserted_rs_b ?? '-'}</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
                 <h2 style={{ margin: 0 }}>Riwayat Pemeriksaan Vital (Warehouse)</h2>
                 <div style={{ minWidth: 320, maxWidth: 520, flex: '1 1 320px', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>

@@ -5,13 +5,27 @@ export default function DWLayout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
 
+  let dwRole = null
+  let isDwAdmin = false
+  try {
+    const raw = localStorage.getItem('dw_user')
+    const u = raw ? JSON.parse(raw) : null
+    dwRole = u?.role ?? null
+    isDwAdmin = (u?.role === 'dw_admin') || (u?.username === 'admin')
+  } catch (e) {
+    dwRole = null
+    isDwAdmin = false
+  }
+
+  const dashboardPath = isDwAdmin ? '/dw-dashboard' : '/dw-dashboard-dokter'
+
   const isActive = (path) => location.pathname === path
 
   useEffect(() => {
     const base = 'Data Warehouse RME-LINK'
     const p = location.pathname || ''
     let suffix = ''
-    if (p === '/dw-dashboard' || p === '/dw') suffix = ' - Dashboard'
+    if (p === '/dw-dashboard' || p === '/dw-dashboard-dokter' || p === '/dw') suffix = ' - Dashboard'
     else if (p === '/dw/poli-umum') suffix = ' - Poli Umum'
     else if (p === '/dw/poli-penyakit-dalam') suffix = ' - Poli Penyakit Dalam'
     else if (p === '/dw/poli-bedah') suffix = ' - Poli Bedah'
@@ -30,7 +44,7 @@ export default function DWLayout({ children }) {
         </div>
 
         <nav className="sidebar-menu">
-          <button className={`sidebar-item ${isActive('/dw-dashboard') ? 'active' : ''}`} onClick={() => navigate('/dw-dashboard')}>
+          <button className={`sidebar-item ${(isActive('/dw-dashboard') || isActive('/dw-dashboard-dokter')) ? 'active' : ''}`} onClick={() => navigate(dashboardPath)}>
             <span className="sidebar-icon">🏠</span>
             <span>Dashboard Utama</span>
           </button>

@@ -17,7 +17,8 @@ function DataWarehouseLogin() {
     setError('')
     setLoading(true)
 
-    // Manual login logic for now: admin/admin -> DW dashboard
+    // Manual login logic for testing (no DB connection)
+    // admin/admin -> DW admin
     if (username === 'admin' && password === 'admin') {
       try { localStorage.setItem('dw_user', JSON.stringify({ username: 'admin', role: 'dw_admin' })) } catch (e) {}
       setLoading(false)
@@ -25,8 +26,10 @@ function DataWarehouseLogin() {
       return
     }
 
-    setError('Username atau password salah')
+    // any other credential -> DW dokter (non-admin)
+    try { localStorage.setItem('dw_user', JSON.stringify({ username: String(username || ''), role: 'dw_doctor' })) } catch (e) {}
     setLoading(false)
+    navigate('/dw-dashboard-dokter')
   }
 
   return (
