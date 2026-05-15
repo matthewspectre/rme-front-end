@@ -398,7 +398,7 @@ function FrontOfficeDashboard() {
             type="button"
             onClick={() => handleMenuClick('queue')}
           >
-            Dashboard Antrian
+            Dashboard Admin
           </button>
           <button
             className={activeMenu === 'register' ? 'fo-menu-item active' : 'fo-menu-item'}
