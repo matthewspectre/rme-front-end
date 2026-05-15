@@ -836,39 +836,44 @@ body {
 }
 
 .fo-sidebar {
-  background: #0ea5e9;
-  color: #e0f2fe;
-  padding: 18px 14px;
+  background: #00bcd4;
+  color: #ffffff;
+  padding: 28px 18px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 22px;
 }
 
 .fo-logo {
-  font-weight: 700;
-  font-size: 16px;
+  font-weight: 500;
+  font-size: 28px;
+  line-height: 1.15;
 }
 
 .fo-menu {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 14px;
 }
 
 .fo-menu-item {
   border: none;
   background: transparent;
-  color: inherit;
-  padding: 8px 10px;
-  border-radius: 999px;
-  font-size: 13px;
+  color: rgba(255, 255, 255, 0.96);
+  padding: 14px 16px;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 500;
   text-align: left;
   cursor: pointer;
 }
 
+.fo-menu-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .fo-menu-item.active {
-  background: rgba(15, 23, 42, 0.18);
-  font-weight: 600;
+  background: rgba(0, 0, 0, 0.12);
 }
 
 .fo-main {
