@@ -1353,15 +1353,46 @@ function PoliBedah() {
   }
 
   return (
-    <div className="doctor-dashboard">
-      <aside className="doctor-sidebar">
-        <div className="sidebar-logo">
-          <div className="logo-mark">RME</div>
-          <div className="logo-text">
-            <span className="logo-title">RME-LINK</span>
-            <span className="logo-subtitle">Rekam Medis Elektronik</span>
-          </div>
+    <div className="doctor-dashboard doctor-dashboard--modern">
+      <aside className="doctor-sidebar doctor-sidebar--modern">
+        <div className="sidebar-brand">RME-link</div>
+        <div className="sidebar-status">
+          {loadingAntrian ? 'Memuat antrian...' : (antrianError || '')}
         </div>
+
+        <nav className="sidebar-menu sidebar-menu--modern">
+          <button
+            type="button"
+            className="sidebar-item sidebar-item--modern"
+            onClick={() => navigate('/dokter')}
+          >
+            <span className="sidebar-item-left">
+              <span className="sidebar-icon">▦</span>
+              <span>Dashboard</span>
+            </span>
+            <span className="sidebar-chevron">›</span>
+          </button>
+
+          <div className="sidebar-section">POLIKLINIK</div>
+
+          <button
+            type="button"
+            className="sidebar-item sidebar-item--modern is-active"
+          >
+            <span className="sidebar-item-left">
+              <span className="sidebar-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                  <path d="M14 2v6h6" />
+                  <path d="M9 13h6" />
+                  <path d="M9 17h6" />
+                </svg>
+              </span>
+              <span>Poli Bedah</span>
+            </span>
+            <span className="sidebar-chevron">›</span>
+          </button>
+        </nav>
         {confirmVisible && (
           <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 70 }}>
             <div style={{ width: 420, background: '#fff', borderRadius: 8, padding: 18, color: '#0f172a' }}>
@@ -1547,17 +1578,6 @@ function PoliBedah() {
             </div>
           </div>
         )}
-
-        <nav className="sidebar-menu">
-          <button className="sidebar-item" onClick={() => navigate('/dokter')}>
-            <span className="sidebar-icon">🏠</span>
-            <span>Dashboard Utama</span>
-          </button>
-          <button className="sidebar-item active">
-            <span className="sidebar-icon">🧑‍⚕️</span>
-            <span>Poli Bedah</span>
-          </button>
-        </nav>
       </aside>
 
       <main className="doctor-main">

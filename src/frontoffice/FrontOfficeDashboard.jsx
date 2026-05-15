@@ -10,8 +10,19 @@ function FrontOfficeDashboard() {
   const [user, setUser] = useState({ full_name: 'Petugas Front Office', role_name: 'Front Office' })
   const [activeMenu, setActiveMenu] = useState('queue')
   const [form, setForm] = useState({
-    namaPasien: '', tanggalMasuk: '', nik: '', jenisKelamin: 'Laki-laki', golonganDarah: 'O',
-    tempatTanggalLahir: '', nomorTelepon: '', alamat: '', kategori: 'Umum', pekerjaan: '',
+    nik: '',
+    tempatTanggalLahir: '',
+    namaPasien: '',
+    jenisKelamin: '',
+    nomorTelepon: '',
+    idPoli: '',
+    alamat: '',
+    penanggung: '',
+    // backend-required / legacy fields
+    tanggalMasuk: '',
+    golonganDarah: 'O',
+    kategori: 'Umum',
+    pekerjaan: '',
   })
   const [submitting, setSubmitting] = useState(false)
 
@@ -70,7 +81,13 @@ function FrontOfficeDashboard() {
     setError('')
 
     // convert datetime-local (YYYY-MM-DDTHH:mm) -> "YYYY-MM-DD HH:mm:00"
-    let tanggalMasuk = form.tanggalMasuk
+    const pad2 = (n) => String(n).padStart(2, '0')
+    const getLocalDateTimeLocal = () => {
+      const d = new Date()
+      return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+    }
+
+    let tanggalMasuk = form.tanggalMasuk || getLocalDateTimeLocal()
     if (tanggalMasuk) {
       tanggalMasuk = tanggalMasuk.replace('T', ' ') + ':00'
     }
@@ -82,8 +99,16 @@ function FrontOfficeDashboard() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          ...form,
+          namaPasien: form.namaPasien,
           tanggalMasuk,
+          nik: form.nik,
+          jenisKelamin: form.jenisKelamin,
+          golonganDarah: form.golonganDarah,
+          tempatTanggalLahir: form.tempatTanggalLahir,
+          nomorTelepon: form.nomorTelepon,
+          alamat: form.alamat,
+          kategori: form.kategori,
+          pekerjaan: form.pekerjaan,
           idDataKlinik: clinicId,
         }),
       })
@@ -96,12 +121,15 @@ function FrontOfficeDashboard() {
       setMessage('Data pasien berhasil disimpan')
       setForm((prev) => ({
         ...prev,
-        namaPasien: '',
-        tanggalMasuk: '',
         nik: '',
         tempatTanggalLahir: '',
+        namaPasien: '',
+        jenisKelamin: '',
         nomorTelepon: '',
+        idPoli: '',
         alamat: '',
+        penanggung: '',
+        tanggalMasuk: '',
         pekerjaan: '',
       }))
 
@@ -395,7 +423,7 @@ function FrontOfficeDashboard() {
         <nav className="fo-menu">
           <button
             className={activeMenu === 'queue' ? 'fo-menu-item active' : 'fo-menu-item'}
-            type="button"
+            type="button" 
             onClick={() => handleMenuClick('queue')}
           >
             Dashboard Admin
@@ -440,34 +468,36 @@ function FrontOfficeDashboard() {
               <form className="fo-form" onSubmit={handleSubmit}>
                 <div className="fo-form-grid">
                   <div className="fo-form-group">
-                    <label htmlFor="namaPasien">Nama Pasien</label>
-                    <input
-                      id="namaPasien"
-                      name="namaPasien"
-                      type="text"
-                      value={form.namaPasien}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-                  <div className="fo-form-group">
-                    <label htmlFor="tanggalMasuk">Tanggal Masuk</label>
-                    <input
-                      id="tanggalMasuk"
-                      name="tanggalMasuk"
-                      type="datetime-local"
-                      value={form.tanggalMasuk}
-                      onChange={handleChange}
-                      required
-                    />
-                  </div>
-                  <div className="fo-form-group">
                     <label htmlFor="nik">NIK</label>
                     <input
                       id="nik"
                       name="nik"
                       type="text"
+                      placeholder="Masukkan NIK"
                       value={form.nik}
+                      onChange={handleChange}
+                      required
+                    />
+                  </div>
+                  <div className="fo-form-group">
+                    <label htmlFor="tempatTanggalLahir">Tanggal Lahir</label>
+                    <input
+                      id="tempatTanggalLahir"
+                      name="tempatTanggalLahir"
+                      type="text"
+                      placeholder="dd/mm/yyyy"
+                      value={form.tempatTanggalLahir}
+                      onChange={handleChange}
+                    />
+                  </div>
+                  <div className="fo-form-group">
+                    <label htmlFor="namaPasien">Nama Pasien</label>
+                    <input
+                      id="namaPasien"
+                      name="namaPasien"
+                      type="text"
+                      placeholder="Masukkan Nama Pasien"
+                      value={form.namaPasien}
                       onChange={handleChange}
                       required
                     />
@@ -479,35 +509,12 @@ function FrontOfficeDashboard() {
                       name="jenisKelamin"
                       value={form.jenisKelamin}
                       onChange={handleChange}
+                      required
                     >
+                      <option value="">Pilih Jenis Kelamin</option>
                       <option value="Laki-laki">Laki-laki</option>
                       <option value="Perempuan">Perempuan</option>
                     </select>
-                  </div>
-                  <div className="fo-form-group">
-                    <label htmlFor="golonganDarah">Golongan Darah</label>
-                    <select
-                      id="golonganDarah"
-                      name="golonganDarah"
-                      value={form.golonganDarah}
-                      onChange={handleChange}
-                    >
-                      <option value="O">O</option>
-                      <option value="A">A</option>
-                      <option value="B">B</option>
-                      <option value="AB">AB</option>
-                    </select>
-                  </div>
-                  <div className="fo-form-group">
-                    <label htmlFor="tempatTanggalLahir">Tempat, Tanggal Lahir</label>
-                    <input
-                      id="tempatTanggalLahir"
-                      name="tempatTanggalLahir"
-                      type="text"
-                      placeholder="Bandung, 01-01-1990"
-                      value={form.tempatTanggalLahir}
-                      onChange={handleChange}
-                    />
                   </div>
                   <div className="fo-form-group">
                     <label htmlFor="nomorTelepon">Nomor Telepon</label>
@@ -515,46 +522,51 @@ function FrontOfficeDashboard() {
                       id="nomorTelepon"
                       name="nomorTelepon"
                       type="text"
+                      placeholder="Masukkan Nomor Telepon"
                       value={form.nomorTelepon}
                       onChange={handleChange}
                     />
+                  </div>
+                  <div className="fo-form-group">
+                    <label htmlFor="idPoli">Poli</label>
+                    <select
+                      id="idPoli"
+                      name="idPoli"
+                      value={form.idPoli}
+                      onChange={handleChange}
+                    >
+                      <option value="">Pilih Poli</option>
+                      <option value="1">Poli Umum</option>
+                      <option value="2">Poli Penyakit Dalam</option>
+                      <option value="3">Poli Bedah</option>
+                    </select>
                   </div>
                   <div className="fo-form-group">
                     <label htmlFor="alamat">Alamat</label>
                     <textarea
                       id="alamat"
                       name="alamat"
-                      rows={3}
+                      rows={4}
+                      placeholder="Masukkan Alamat"
                       value={form.alamat}
                       onChange={handleChange}
                     />
                   </div>
                   <div className="fo-form-group">
-                    <label htmlFor="kategori">Kategori</label>
-                    <select
-                      id="kategori"
-                      name="kategori"
-                      value={form.kategori}
-                      onChange={handleChange}
-                    >
-                      <option value="Umum">Umum</option>
-                      <option value="Asuransi">Asuransi</option>
-                    </select>
-                  </div>
-                  <div className="fo-form-group">
-                    <label htmlFor="pekerjaan">Pekerjaan</label>
+                    <label htmlFor="penanggung">Penanggung</label>
                     <input
-                      id="pekerjaan"
-                      name="pekerjaan"
+                      id="penanggung"
+                      name="penanggung"
                       type="text"
-                      value={form.pekerjaan}
+                      placeholder="Masukkan Penanggung"
+                      value={form.penanggung}
                       onChange={handleChange}
                     />
                   </div>
                 </div>
                 <div className="fo-form-actions">
                   <button type="submit" disabled={submitting}>
-                    {submitting ? 'Menyimpan...' : 'Simpan Data Pasien'}
+                    {submitting ? 'Menyimpan...' : 'Simpan Pasien Baru'}
                   </button>
                 </div>
               </form>

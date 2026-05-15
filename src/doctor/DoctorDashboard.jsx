@@ -189,45 +189,76 @@ function DoctorDashboard() {
     .toUpperCase()
 
   return (
-    <div className="doctor-dashboard">
-      <aside className="doctor-sidebar">
-        <div className="sidebar-logo">
-          <div className="logo-mark">RME</div>
-          <div className="logo-text">
-            <span className="logo-title">RME-LINK</span>
-            <span className="logo-subtitle">Rekam Medis Elektronik</span>
-          </div>
-        </div>
+    <div className="doctor-dashboard doctor-dashboard--modern">
+      <aside className="doctor-sidebar doctor-sidebar--modern">
+        <div className="sidebar-brand">RME-link</div>
 
-        <nav className="sidebar-menu">
-          <button className="sidebar-item active">
-            <span className="sidebar-icon">🏠</span>
-            <span>Dashboard Utama</span>
+        <nav className="sidebar-menu sidebar-menu--modern">
+          <button
+            type="button"
+            className="sidebar-item sidebar-item--modern is-active"
+          >
+            <span className="sidebar-item-left">
+              <span className="sidebar-icon">▦</span>
+              <span>Dashboard</span>
+            </span>
+            <span className="sidebar-chevron">›</span>
           </button>
+
+          <div className="sidebar-section">POLIKLINIK</div>
+
           {/* Tampilkan tombol masuk ke menu poli sesuai poli dokter (1=Umum,2=Penyakit Dalam,3=Bedah) */}
           {myDokter && (() => {
             const poliVal = myDokter?.poli ?? myDokter?.idPoli ?? myDokter?.poli_id ?? myDokter?.id_poli ?? null
             if (Number(poliVal) === 1) {
               return (
-                <button className="sidebar-item" onClick={() => { window.location.href = 'http://localhost:5173/pemeriksaan/poli-umum' }}>
-                  <span className="sidebar-icon">🩺</span>
-                  <span>Poli Umum</span>
+                <button
+                  type="button"
+                  className="sidebar-item sidebar-item--modern"
+                  onClick={() => navigate('/pemeriksaan/poli-umum')}
+                >
+                  <span className="sidebar-item-left">
+                    <span className="sidebar-icon">🩺</span>
+                    <span>Poli Umum</span>
+                  </span>
+                  <span className="sidebar-chevron">›</span>
                 </button>
               )
             }
             if (Number(poliVal) === 2) {
               return (
-                <button className="sidebar-item" onClick={() => { window.location.href = 'http://localhost:5173/pemeriksaan/poli-penyakit-dalam' }}>
-                  <span className="sidebar-icon">🫀</span>
-                  <span>Poli Penyakit Dalam</span>
+                <button
+                  type="button"
+                  className="sidebar-item sidebar-item--modern"
+                  onClick={() => navigate('/pemeriksaan/poli-penyakit-dalam')}
+                >
+                  <span className="sidebar-item-left">
+                    <span className="sidebar-icon">∿</span>
+                    <span>Poli Penyakit Dalam</span>
+                  </span>
+                  <span className="sidebar-chevron">›</span>
                 </button>
               )
             }
             if (Number(poliVal) === 3) {
               return (
-                <button className="sidebar-item" onClick={() => { window.location.href = 'http://localhost:5173/pemeriksaan/poli-bedah' }}>
-                  <span className="sidebar-icon">🧑‍⚕️</span>
-                  <span>Poli Bedah</span>
+                <button
+                  type="button"
+                  className="sidebar-item sidebar-item--modern"
+                  onClick={() => navigate('/pemeriksaan/poli-bedah')}
+                >
+                  <span className="sidebar-item-left">
+                    <span className="sidebar-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+                        <path d="M14 2v6h6" />
+                        <path d="M9 13h6" />
+                        <path d="M9 17h6" />
+                      </svg>
+                    </span>
+                    <span>Poli Bedah</span>
+                  </span>
+                  <span className="sidebar-chevron">›</span>
                 </button>
               )
             }

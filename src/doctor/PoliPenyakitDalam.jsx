@@ -1169,24 +1169,37 @@ function PoliPenyakitDalam() {
   }, [])
 
   return (
-    <div className="doctor-dashboard">
-      <aside className="doctor-sidebar">
-        <div className="sidebar-logo">
-          <div className="logo-mark">RME</div>
-          <div className="logo-text">
-            <span className="logo-title">RME-LINK</span>
-            <span className="logo-subtitle">Rekam Medis Elektronik</span>
-          </div>
+    <div className="doctor-dashboard doctor-dashboard--modern">
+      <aside className="doctor-sidebar doctor-sidebar--modern">
+        <div className="sidebar-brand">RME-link</div>
+        <div className="sidebar-status">
+          {loadingAntrian ? 'Memuat antrian...' : (antrianError || '')}
         </div>
 
-        <nav className="sidebar-menu">
-          <button className="sidebar-item" onClick={() => navigate('/dokter')}>
-            <span className="sidebar-icon">🏠</span>
-            <span>Dashboard Utama</span>
+        <nav className="sidebar-menu sidebar-menu--modern">
+          <button
+            type="button"
+            className="sidebar-item sidebar-item--modern"
+            onClick={() => navigate('/dokter')}
+          >
+            <span className="sidebar-item-left">
+              <span className="sidebar-icon">▦</span>
+              <span>Dashboard</span>
+            </span>
+            <span className="sidebar-chevron">›</span>
           </button>
-          <button className="sidebar-item active">
-            <span className="sidebar-icon">🫀</span>
-            <span>Poli Penyakit Dalam</span>
+
+          <div className="sidebar-section">POLIKLINIK</div>
+
+          <button
+            type="button"
+            className="sidebar-item sidebar-item--modern is-active"
+          >
+            <span className="sidebar-item-left">
+              <span className="sidebar-icon">∿</span>
+              <span>Poli Penyakit Dalam</span>
+            </span>
+            <span className="sidebar-chevron">›</span>
           </button>
         </nav>
       </aside>
